@@ -5,6 +5,5 @@ export { Card } from './Card';
 export { Dropdown } from './Dropdown';
 export { Input } from './Input';
 export { Modal } from './Modal';
-export { Skeleton } from './Skeleton';
 export { Spinner } from './Spinner';
 export { Tabs } from './Tabs';
