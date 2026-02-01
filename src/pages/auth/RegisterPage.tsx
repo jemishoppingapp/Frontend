@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { login } = useAuthStore();
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -17,6 +18,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters');
+      return;
+    }
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
       return;
@@ -43,7 +48,7 @@ export default function RegisterPage() {
         {/* Left side - Image (hidden on mobile) */}
         <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 items-center justify-center p-12">
           <img
-              src="/jemi.png"
+              src="/jemi3.png"
               alt="Jemi"
               className="max-w-md w-full object-contain"
           />
@@ -67,6 +72,19 @@ export default function RegisterPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Username */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-gray-300 bg-blue-50/50 px-4 py-3 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors"
+                    placeholder="johndoe"
+                />
+              </div>
+
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
