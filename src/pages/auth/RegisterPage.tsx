@@ -48,7 +48,7 @@ export default function RegisterPage() {
         {/* Left side - Image (hidden on mobile) */}
         <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 items-center justify-center p-12">
           <img
-              src="/jemi3.png"
+              src="/jemi3.webp"
               alt="Jemi"
               className="max-w-md w-full object-contain"
           />
@@ -59,7 +59,7 @@ export default function RegisterPage() {
           <div className="w-full max-w-md">
             {/* Logo */}
             <div className="flex items-center gap-3 mb-8">
-              <img src="/jemi.png" alt="Jemi" className="h-10 w-10" />
+              <img src="/jemi.webp" alt="Jemi" className="h-10 w-10" />
               <span className="text-2xl font-bold text-gray-900">Jemi</span>
             </div>
 

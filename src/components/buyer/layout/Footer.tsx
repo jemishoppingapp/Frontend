@@ -9,7 +9,7 @@ export function Footer() {
             {/* Logo section */}
             <div className="flex items-center gap-2">
               <img
-                src="/jemi2.png"
+                src="/jemi2.webp"
                 alt="Jemi Logo"
                 className="h-14 w-14 object-contain"
               />

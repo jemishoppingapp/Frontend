@@ -44,7 +44,7 @@ export function Header() {
             
             {/* Logo */}
             <Link to="/" className="flex-shrink-0">
-              <img src="/jemi.png" alt="Jemi Logo" className="h-10 w-10 object-contain" />
+              <img src="/jemi.webp" alt="Jemi Logo" className="h-10 w-10 object-contain" />
             </Link>
 
             {/* Search bar */}
