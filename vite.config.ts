@@ -19,7 +19,7 @@ export default defineConfig({
       '@data': path.resolve(__dirname, './src/components/data'),
     },
   },
-  server: {
-    port: 3000,
-  },
+  // server: {
+  //   port: 3000,
+  // },
 })

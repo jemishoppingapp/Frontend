@@ -7,3 +7,4 @@ export { Input } from './Input';
 export { Modal } from './Modal';
 export { Spinner } from './Spinner';
 export { Tabs } from './Tabs';
+export { ToastContainer } from './Toast';
