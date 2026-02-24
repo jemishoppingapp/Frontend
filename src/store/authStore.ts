@@ -8,6 +8,12 @@ interface User {
   phone: string;
   name: string;
   avatar?: string;
+  nickname?: string;
+  alt_phone?: string;
+  address?: string;
+  department?: string;
+  level?: string;
+  profile_completed: boolean;
 }
 
 interface AuthState {
@@ -18,13 +24,14 @@ interface AuthState {
   error: string | null;
   login: (user: User, token?: string) => void;
   logout: () => void;
+  updateUser: (data: Partial<User>) => void;
   loginWithCredentials: (credentials: { email: string; password: string }) => Promise<void>;
   register: (data: { name: string; email: string; phone: string; password: string }) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -33,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
 
       login: (user, token) => set({ user, token: token || null, isAuthenticated: true, error: null }),
       logout: () => set({ user: null, token: null, isAuthenticated: false, error: null }),
+      updateUser: (data) => set((s) => ({ user: s.user ? { ...s.user, ...data } : null })),
 
       loginWithCredentials: async (credentials) => {
         set({ isLoading: true, error: null });

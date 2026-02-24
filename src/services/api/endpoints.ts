@@ -32,6 +32,7 @@ export const ENDPOINTS = {
     ITEMS: '/cart/items',
     ITEM: (id: string) => `/cart/items/${id}`,
     CLEAR: '/cart/clear',
+    SYNC: '/cart/sync',
   },
 
   // Orders
@@ -52,6 +53,7 @@ export const ENDPOINTS = {
   // User
   USER: {
     PROFILE: '/user/profile',
+    PROFILE_COMPLETE: '/user/profile/complete',
     ADDRESSES: '/user/addresses',
     ADDRESS: (id: string) => `/user/addresses/${id}`,
   },

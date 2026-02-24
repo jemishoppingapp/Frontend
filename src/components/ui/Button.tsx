@@ -17,9 +17,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 focus-visible:ring-indigo-500',
+    'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-700 focus-visible:ring-gray-900',
   secondary:
-    'bg-violet-500 text-white hover:bg-violet-600 active:bg-violet-700 focus-visible:ring-violet-500',
+    'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 focus-visible:ring-green-600',
   accent:
     'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 focus-visible:ring-orange-500',
   outline:
@@ -64,19 +64,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          // Base styles
           'inline-flex items-center justify-center rounded-lg font-semibold',
           'transition-all duration-200 ease-in-out',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-          // Variant styles
           variantStyles[variant],
-          // Size styles
           sizeStyles[size],
-          // Width
           fullWidth && 'w-full',
-          // Disabled state
           isDisabled && 'cursor-not-allowed opacity-50',
-          // Custom className
           className
         )}
         disabled={isDisabled}

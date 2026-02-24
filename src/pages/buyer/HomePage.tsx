@@ -9,26 +9,26 @@ export default function HomePage() {
 
   return (
     <div className="bg-white">
-      {/* Category Grid - with images */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* Category Grid - compact */}
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-4 gap-3 sm:gap-4">
           {MOCK_CATEGORIES.map((category) => (
               <Link
                   key={category.id}
                   to={category.href}
-                  className="group flex flex-col items-center p-5 bg-gray-50 rounded-xl hover:bg-gray-100 hover:shadow-md transition-all border border-transparent hover:border-green-200"
+                  className="group flex flex-col items-center p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 hover:shadow-md transition-all border border-transparent hover:border-green-200"
               >
-                <div className="w-20 h-20 mb-3 rounded-lg overflow-hidden bg-white shadow-sm">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 mb-2 rounded-md overflow-hidden bg-white shadow-sm">
                   <img
                       src={category.imageSrc}
                       alt={category.name}
                       className="w-full h-full object-cover"
                   />
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                <h3 className="text-xs sm:text-sm font-semibold text-gray-900 group-hover:text-green-600 transition-colors text-center">
                   {category.name}
                 </h3>
-                <p className="text-xs text-gray-500 mt-1">{category.description}</p>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 hidden sm:block">{category.description}</p>
               </Link>
           ))}
         </div>
@@ -96,33 +96,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Why Shop With Us - Simple */}
-      <div className="bg-gray-50 border-t border-gray-100">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div>
-              <div className="text-2xl mb-2">🏫</div>
-              <h3 className="text-sm font-semibold text-gray-900">Campus Pickup</h3>
-              <p className="text-xs text-gray-500 mt-1">LASU Main Gate</p>
-            </div>
-            <div>
-              <div className="text-2xl mb-2">✓</div>
-              <h3 className="text-sm font-semibold text-gray-900">Quality Products</h3>
-              <p className="text-xs text-gray-500 mt-1">100% Authentic</p>
-            </div>
-            <div>
-              <div className="text-2xl mb-2">💬</div>
-              <h3 className="text-sm font-semibold text-gray-900">Easy Support</h3>
-              <p className="text-xs text-gray-500 mt-1">WhatsApp Available</p>
-            </div>
-            <div>
-              <div className="text-2xl mb-2">💰</div>
-              <h3 className="text-sm font-semibold text-gray-900">Best Prices</h3>
-              <p className="text-xs text-gray-500 mt-1">Student Friendly</p>
-            </div>
-          </div>
-        </div>
-      </div>
+
     </div>
   );
 }

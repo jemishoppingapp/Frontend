@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CartItem } from '@/data/mockData';
+import type { CartItem } from '@/reusable/types/product';
 
 interface CartState {
     items: CartItem[];
@@ -20,8 +20,8 @@ export const useCartStore = create<CartState>()(
             isOpen: false,
             addItem: (item) => set((s) => {
                 const existing = s.items.find((i) => i.id === item.id);
-                if (existing) return { items: s.items.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i) };
-                return { items: [...s.items, { ...item, quantity: 1 }] };
+                if (existing) return { items: s.items.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i) };
+                return { items: [...s.items, { ...item, quantity: item.quantity || 1 }] };
             }),
             removeItem: (id) => set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
             updateQuantity: (id, qty) => { if (qty < 1) get().removeItem(id); else set((s) => ({ items: s.items.map((i) => i.id === id ? { ...i, quantity: qty } : i) })); },

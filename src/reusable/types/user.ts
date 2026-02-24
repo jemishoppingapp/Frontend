@@ -1,10 +1,16 @@
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   phone: string;
   avatar?: string;
-  createdAt: string;
+  nickname?: string;
+  alt_phone?: string;
+  address?: string;
+  department?: string;
+  level?: string;
+  profile_completed: boolean;
+  createdAt?: string;
   addresses?: Address[];
 }
 
@@ -39,4 +45,12 @@ export interface ProfileUpdateData {
   name?: string;
   phone?: string;
   avatar?: string;
+}
+
+export interface ProfileCompleteData {
+  nickname: string;
+  alt_phone: string;
+  address: string;
+  department: string;
+  level: string;
 }

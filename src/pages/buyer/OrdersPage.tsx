@@ -28,7 +28,7 @@ export default function OrdersPage() {
                 <div className="space-y-1 md:flex md:items-baseline md:space-x-4 md:space-y-0">
                   <h2 className="text-lg font-medium text-gray-900">Order #{order.orderNumber}</h2>
                   <div className="flex-1 flex justify-between text-sm">
-                    <Link to={`/orders/${order.id}`} className="text-indigo-600 hover:text-indigo-500">View invoice →</Link>
+                    <Link to={`/orders/${order.id}`} className="text-green-600 hover:text-green-500">View invoice →</Link>
                     <span className="text-gray-500">Placed {order.datePlaced}</span>
                   </div>
                 </div>
@@ -51,8 +51,8 @@ export default function OrdersPage() {
                           </span>
                         </div>
                         <div className="mt-4 flex space-x-4 text-sm font-medium">
-                          <Link to={`/products/${item.id}`} className="text-indigo-600 hover:text-indigo-500">View</Link>
-                          <button className="text-indigo-600 hover:text-indigo-500">Buy again</button>
+                          <Link to={`/products/${item.id}`} className="text-green-600 hover:text-green-500">View</Link>
+                          <button className="text-green-600 hover:text-green-500">Buy again</button>
                         </div>
                       </div>
                     </div>

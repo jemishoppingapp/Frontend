@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { StarIcon, ShoppingCartIcon } from '@heroicons/react/24/solid';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
-import type { Product } from '@/data/mockData';
+import type { Product } from '@/reusable/types/product';
 import { useCartStore } from '@/store/cartStore';
 import { useUIStore } from '@/store/uiStore';
 
@@ -27,7 +27,7 @@ export function ProductCard({ product }: { product: Product }) {
             className="h-full w-full object-cover object-center"
           />
           
-          {/* Rating badge - Oraimo style */}
+          {/* Rating badge */}
           <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm">
             <span className="text-sm font-semibold text-gray-900">{product.rating}</span>
             <StarIcon className="h-3.5 w-3.5 text-yellow-400" />
@@ -38,9 +38,14 @@ export function ProductCard({ product }: { product: Product }) {
         {/* Content */}
         <div className="p-4">
           {/* Product name */}
-          <h3 className="text-sm font-medium text-gray-900 line-clamp-1 mb-2">
+          <h3 className="text-sm font-medium text-gray-900 line-clamp-1 mb-1">
             {product.name}
           </h3>
+
+          {/* Seller name */}
+          <p className="text-xs text-gray-400 mb-2">
+            {product.seller}
+          </p>
 
           {/* Features */}
           <div className="space-y-1.5 mb-3">
@@ -62,7 +67,7 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
       </Link>
 
-      {/* Hover actions - Oraimo style */}
+      {/* Hover actions */}
       <div className="product-card-actions absolute bottom-0 left-0 right-0 p-4 pt-2 bg-gradient-to-t from-white via-white to-transparent">
         <div className="flex gap-2">
           <Link 

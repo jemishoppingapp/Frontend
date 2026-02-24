@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { StarIcon } from '@heroicons/react/24/solid';
 import { HeartIcon, CheckCircleIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/data/mockData';
 import { useCartStore } from '@/store/cartStore';
+import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { addItem } = useCartStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { showToast } = useUIStore();
   const [quantity, setQuantity] = useState(1);
   
@@ -30,6 +33,19 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     addItem({ ...product, quantity });
     showToast('success', `${product.name} added to cart`);
+  };
+
+  const handleBuyNow = () => {
+    handleAddToCart();
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: '/checkout' } });
+      return;
+    }
+    if (!user?.profile_completed) {
+      navigate('/profile/complete', { state: { from: '/checkout' } });
+      return;
+    }
+    navigate('/checkout');
   };
 
   const decreaseQty = () => setQuantity(q => Math.max(1, q - 1));
@@ -100,7 +116,6 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Divider */}
             <hr className="my-6 border-gray-200" />
 
             {/* Features */}
@@ -115,7 +130,6 @@ export default function ProductDetailPage() {
               ))}
             </div>
 
-            {/* Divider */}
             <hr className="my-6 border-gray-200" />
 
             {/* Quantity */}
@@ -150,10 +164,7 @@ export default function ProductDetailPage() {
                 Add to Cart
               </button>
               <button
-                onClick={() => {
-                  handleAddToCart();
-                  window.location.href = '/checkout';
-                }}
+                onClick={handleBuyNow}
                 disabled={!product.inStock}
                 className="flex-1 py-3 px-6 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >

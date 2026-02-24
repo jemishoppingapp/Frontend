@@ -1,29 +1,10 @@
 /**
  * MOCK DATA - DELETE WHEN FASTAPI IS READY
  */
+import type { Product, CartItem, Category } from '@/reusable/types/product';
 
-export interface Product {
-  id: number;
-  name: string;
-  href: string;
-  price: string;
-  priceValue: number;
-  originalPrice?: string;
-  originalPriceValue?: number;
-  imageSrc: string;
-  imageAlt: string;
-  color?: string;
-  category: string;
-  inStock: boolean;
-  rating: number;
-  reviewCount: number;
-  features: string[];
-  seller: string;
-}
-
-export interface CartItem extends Product {
-  quantity: number;
-}
+// Re-export for backward compat during migration
+export type { Product, CartItem, Category };
 
 export interface OrderItem {
   id: number;
@@ -43,15 +24,6 @@ export interface Order {
   totalAmount: string;
   status: 'processing' | 'shipped' | 'delivered' | 'cancelled';
   items: OrderItem[];
-}
-
-export interface Category {
-  id: string;
-  name: string;
-  href: string;
-  description: string;
-  imageSrc: string;
-  icon: string;
 }
 
 export const MOCK_PRODUCTS: Product[] = [

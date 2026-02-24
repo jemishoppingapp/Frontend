@@ -4,11 +4,19 @@ export interface Product {
   href: string;
   price: string;
   priceValue: number;
+  originalPrice?: string;
+  originalPriceValue?: number;
   imageSrc: string;
   imageAlt: string;
   color?: string;
   category: string;
   inStock: boolean;
+  rating: number;
+  reviewCount: number;
+  features: string[];
+  seller: string;
+  description?: string;
+  stockQuantity?: number;
 }
 
 export interface CartItem extends Product {
@@ -21,4 +29,5 @@ export interface Category {
   href: string;
   description?: string;
   imageSrc?: string;
+  icon?: string;
 }

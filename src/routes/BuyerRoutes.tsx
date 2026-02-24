@@ -9,9 +9,11 @@ const ProductsPage = lazy(() => import('@/pages/buyer/ProductsPage'));
 const ProductDetailPage = lazy(() => import('@/pages/buyer/ProductDetailPage'));
 const CartPage = lazy(() => import('@/pages/buyer/CartPage'));
 const CheckoutPage = lazy(() => import('@/pages/buyer/CheckoutPage'));
+const CheckoutVerifyPage = lazy(() => import('@/pages/buyer/CheckoutVerifyPage'));
 const OrdersPage = lazy(() => import('@/pages/buyer/OrdersPage'));
 const OrderDetailPage = lazy(() => import('@/pages/buyer/OrderDetailPage'));
 const ProfilePage = lazy(() => import('@/pages/buyer/ProfilePage'));
+const ProfileCompletePage = lazy(() => import('@/pages/buyer/ProfileCompletePage'));
 
 function PageLoader() {
   return (
@@ -31,9 +33,11 @@ export function BuyerRoutes() {
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/checkout/verify" element={<CheckoutVerifyPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/complete" element={<ProfileCompletePage />} />
         </Routes>
       </Suspense>
     </Layout>

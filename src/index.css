@@ -5,6 +5,31 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Form elements base styles (Tailwind v4 doesn't include form resets) */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  background-color: #fff;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+
 /* Line clamp utilities */
 .line-clamp-1 {
   display: -webkit-box;

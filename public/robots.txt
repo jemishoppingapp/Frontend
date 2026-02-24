@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /checkout
+Disallow: /profile
+Disallow: /orders
+Disallow: /cart
+
+Sitemap: https://jemi.ng/sitemap.xml
