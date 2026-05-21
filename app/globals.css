@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+ * Brand tokens (Tailwind v4 @theme — these are exposed as CSS vars
+ * AND become Tailwind utilities like `bg-primary`, `text-primary`).
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-primary: #16a34a;          /* green-600 — primary CTA, links */
+  --color-primary-hover: #15803d;    /* green-700 — hover */
+  --color-primary-light: #dcfce7;    /* green-100 — soft bg, badges */
+  --color-primary-dark: #166534;     /* green-800 — text on light primary */
+  --color-primary-foreground: #ffffff;
+
+  /* Brand-adjacent surface colors */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f9fafb;    /* gray-50 — page bg between sections */
+  --color-border-soft: #f3f4f6;      /* gray-100 — card borders */
+  --color-border: #e5e7eb;           /* gray-200 — input borders */
+
+  /* Fonts */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system,
+               BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ------------------------------------------------------------------
+ * Mobile-first base
+ *
+ * Goals:
+ *  - 16px body (no auto-zoom on iOS form focus)
+ *  - 44×44px tap targets minimum on touch devices
+ *  - safe-area-inset padding for iOS notch / Android gesture bar
+ *  - no horizontal scroll, no overflow surprises
+ *  - smooth font rendering on cheap Android (Cleartype-equivalent off)
+ * ------------------------------------------------------------------ */
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  /* Prevent iOS from inflating text after orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Smoother scroll, but only on devices that don't say they prefer reduced motion */
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  background: var(--color-surface);
+  color: #111827;          /* gray-900 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Stop pinch-zoom from being a thing on form-focus */
+  text-rendering: optimizeLegibility;
+  /* Edges flush on phones */
+  overflow-x: hidden;
+}
+
+/* Safe area on iOS notched devices.
+ * We apply env(safe-area-inset-*) on the outermost layout container
+ * (top for the sticky header, bottom for sticky CTA bars on
+ * product/cart pages). */
+.safe-top    { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-x      {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* 44px tap targets — only enforced where it counts (buttons, links
+ * marked role="button" or class="tap"). Don't enforce on every <a>
+ * because text inside body copy doesn't need to be 44px tall. */
+@media (hover: none) {
+  button.tap, a.tap, [role="button"].tap, .tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Focus ring — visible, branded, accessible.
+ * :focus-visible (not :focus) so mouse clicks don't show the ring,
+ * only keyboard nav does. */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Forms: 16px input text on iOS so we don't trigger zoom on focus.
+ * On Android this is fine at any size, but iOS Safari zooms when
+ * inputs < 16px and the visual jolt is jarring on a small phone. */
+input, textarea, select {
+  font-size: 16px;
+}
+
+/* Selection — branded */
+::selection {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+/* Hide the number-input spinner that Chrome adds — it breaks our
+ * custom quantity-stepper component */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ------------------------------------------------------------------
+ * Utility: line-clamp shortcuts (Tailwind has these but we set
+ * `display: -webkit-box` here so it works in older WebViews on
+ * cheap Android phones too)
+ * ------------------------------------------------------------------ */
+.line-clamp-1, .line-clamp-2, .line-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-1 { -webkit-line-clamp: 1; }
+.line-clamp-2 { -webkit-line-clamp: 2; }
+.line-clamp-3 { -webkit-line-clamp: 3; }
+
+/* ------------------------------------------------------------------
+ * Glass surface — used sparingly. Three places only:
+ *   1. Rating badge on product cards
+ *   2. Hero CTA (when we land it in install-4a)
+ *   3. Pickup-code card on /checkout/verify
+ * Don't add `.glass` anywhere else — overuse is the AI-generated look.
+ * ------------------------------------------------------------------ */
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.glass-dark {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+/* IntersectionObserver fade-in — used in install-5 for product grids.
+ * Define the resting + visible states here so the class is ready when
+ * we wire up the observer later. */
+.fade-in {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+.fade-in.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Disable transitions when user prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .fade-in {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
