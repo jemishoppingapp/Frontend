@@ -7,6 +7,11 @@ import { CategoryGrid } from '@/components/product/CategoryGrid';
 import { ProductGrid } from '@/components/product/ProductGrid';
 import { ProductGridSkeleton } from '@/components/product/ProductGridSkeleton';
 import { TimeoutDetector } from '@/components/TimeoutDetector';
+import { RevealOnScroll } from '@/components/RevealOnScroll';
+import { HomeHero } from '@/components/home/HomeHero';
+import { HowItWorks } from '@/components/home/HowItWorks';
+import { TrustStrip } from '@/components/home/TrustStrip';
+import { FooterCTA } from '@/components/home/FooterCTA';
 import { db, schema } from '@/db';
 import type { ProductCardData } from '@/components/product/ProductCard';
 
@@ -25,7 +30,6 @@ async function getFeaturedProducts(): Promise<ProductCardData[]> {
       _id: d.id,
       slug: d.slug,
       name: d.name,
-      // numeric columns come back as string; convert at boundary.
       price: Number(d.price),
       originalPrice: d.originalPrice ? Number(d.originalPrice) : undefined,
       imageUrl: d.images?.[0]?.url ?? '',
@@ -50,21 +54,43 @@ async function FeaturedProducts() {
 export default function HomePage() {
   return (
     <div>
-      <Container className="py-6">
-        <CategoryGrid />
-      </Container>
+      <HomeHero />
+      <TrustStrip />
 
-      <div className="border-t border-border-soft">
-        <Container className="py-8">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              Featured Products
+      {/* Categories */}
+      <RevealOnScroll as="section">
+        <Container className="py-12 sm:py-16">
+          <div className="text-center max-w-xl mx-auto mb-8">
+            <p className="text-xs uppercase tracking-[0.2em] text-primary font-semibold mb-3">
+              Shop by category
+            </p>
+            <h2 className="font-display text-2xl sm:text-3xl font-bold text-gray-900">
+              What do you need today?
             </h2>
+          </div>
+          <CategoryGrid />
+        </Container>
+      </RevealOnScroll>
+
+      <HowItWorks />
+
+      {/* Featured */}
+      <RevealOnScroll as="section">
+        <Container className="py-12 sm:py-16">
+          <div className="flex items-end justify-between gap-3 mb-6 sm:mb-8">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-primary font-semibold mb-2">
+                Featured
+              </p>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-gray-900">
+                This week's picks
+              </h2>
+            </div>
             <Link
               href="/products"
-              className="text-sm font-medium text-gray-600 hover:text-primary transition-colors inline-flex items-center gap-1"
+              className="text-sm font-medium text-gray-600 hover:text-primary transition-colors inline-flex items-center gap-1 shrink-0"
             >
-              View all
+              See all
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -79,7 +105,9 @@ export default function HomePage() {
             <FeaturedProducts />
           </Suspense>
         </Container>
-      </div>
+      </RevealOnScroll>
+
+      <FooterCTA />
     </div>
   );
 }

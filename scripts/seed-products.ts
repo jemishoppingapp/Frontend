@@ -1,6 +1,9 @@
 /**
  * Idempotent seed: 24 starter products. Upsert by slug.
  *
+ * Images: placehold.co placeholders (per-category branded colors).
+ * Replace with real Cloudinary URLs before launch.
+ *
  * Usage:
  *   npm run seed:products
  */
@@ -18,6 +21,24 @@ interface SeedProduct {
   reviewCount: number;
   stockQuantity: number;
   isFeatured?: boolean;
+}
+
+// Per-category color (background) + foreground (text). Bright but not
+// neon — matches the JEMI brand palette feel.
+const CATEGORY_COLORS: Record<SeedProduct['category'], { bg: string; fg: string }> = {
+  fashion: { bg: '16a34a', fg: 'ffffff' },      // green-600 / white
+  electronics: { bg: '1f2937', fg: 'ffffff' },  // gray-800 / white
+  food: { bg: 'f59e0b', fg: 'ffffff' },         // amber-500 / white
+  accessories: { bg: '7c3aed', fg: 'ffffff' },  // violet-600 / white
+};
+
+function placeholderUrl(category: SeedProduct['category'], name: string): string {
+  const { bg, fg } = CATEGORY_COLORS[category];
+  // placehold.co URL format: /<width>x<height>/<bg>/<fg>?text=<text>&font=<font>
+  // The text is shown across the rectangle; we trim long names.
+  const label = name.length > 24 ? name.slice(0, 22) + '…' : name;
+  const text = encodeURIComponent(label).replace(/%20/g, '+');
+  return `https://placehold.co/600x600/${bg}/${fg}?text=${text}&font=inter`;
 }
 
 const PRODUCTS: SeedProduct[] = [
@@ -40,8 +61,8 @@ const PRODUCTS: SeedProduct[] = [
   { name: 'Energy Drink Pack (12-pack)', category: 'food', price: 7200, description: 'Twelve-pack of energy drinks for those late-night study sessions. Mixed berry flavor.', features: ['12 cans', '250ml each', 'Mixed berry'], rating: 4.2, reviewCount: 187, stockQuantity: 45 },
   { name: 'Cereal Bowl Bundle', category: 'food', price: 6800, description: 'Two boxes of breakfast cereal plus a 1L pack of long-life milk. Quick mornings sorted.', features: ['2 cereal boxes', '1L UHT milk', 'No refrigeration needed before opening'], rating: 4.1, reviewCount: 76, stockQuantity: 30 },
   { name: 'Biscuit Variety Pack', category: 'food', price: 3500, description: 'Assorted local biscuits — sweet, savory, cream-filled. The whole hostel will end up borrowing some.', features: ['Assorted varieties', '10 packs included', 'Long shelf-life'], rating: 4.3, reviewCount: 245, stockQuantity: 65 },
-  { name: 'Bottled Water (Pack of 24)', category: 'food', price: 4500, description: 'Twenty-four bottles of pure table water. Skip the queue at the water tap.', features: ['24 × 75cl bottles', 'Sealed for freshness'], rating: 4.4, reviewCount: 312, stockQuantity: 100 },
-  { name: 'Snack Bundle (Crisps + Drinks)', category: 'food', price: 5200, description: 'Six bags of crisps and six soft drinks. Movie-night ready.', features: ['6 crisp bags', '6 × 35cl soft drinks', 'Mixed flavors'], rating: 4.5, reviewCount: 168, stockQuantity: 50 },
+  { name: 'Bottled Water (Pack of 24)', category: 'food', price: 4500, description: 'Twenty-four bottles of pure table water. Skip the queue at the water tap.', features: ['24 x 75cl bottles', 'Sealed for freshness'], rating: 4.4, reviewCount: 312, stockQuantity: 100 },
+  { name: 'Snack Bundle (Crisps + Drinks)', category: 'food', price: 5200, description: 'Six bags of crisps and six soft drinks. Movie-night ready.', features: ['6 crisp bags', '6 x 35cl soft drinks', 'Mixed flavors'], rating: 4.5, reviewCount: 168, stockQuantity: 50 },
   // Accessories
   { name: 'Canvas Backpack', category: 'accessories', price: 14500, originalPrice: 18000, description: 'Roomy canvas backpack with padded laptop sleeve and water bottle pockets. Holds 15.6-inch laptops.', features: ['Padded 15.6" laptop sleeve', 'Two water bottle pockets', 'Adjustable straps', 'Water-resistant'], rating: 4.7, reviewCount: 421, stockQuantity: 25, isFeatured: true },
   { name: 'Leather Wallet', category: 'accessories', price: 6500, description: 'Slim bi-fold wallet in genuine leather. Holds 6 cards plus cash without bulking up your pocket.', features: ['Genuine leather', 'RFID-blocking', '6 card slots', 'Bi-fold design'], rating: 4.4, reviewCount: 156, stockQuantity: 40 },
@@ -51,17 +72,10 @@ const PRODUCTS: SeedProduct[] = [
   { name: 'Crossbody Bag', category: 'accessories', price: 8500, description: 'Compact crossbody bag with multiple compartments. Just enough room for phone, wallet, and a small notebook.', features: ['Adjustable crossbody strap', '3 zip compartments', 'Lightweight'], rating: 4.3, reviewCount: 145, stockQuantity: 35 },
 ];
 
-function unsplashUrl(seedString: string): string {
-  return `https://source.unsplash.com/600x600/?${encodeURIComponent(seedString)}`;
-}
-
 async function main() {
-  let created = 0;
-  let updated = 0;
-
   for (const p of PRODUCTS) {
     const slug = slugify(p.name);
-    const imageUrl = unsplashUrl(`${p.category},${p.name.split(' ')[0]}`);
+    const imageUrl = placeholderUrl(p.category, p.name);
 
     const row = {
       name: p.name,
@@ -82,23 +96,17 @@ async function main() {
       updatedAt: new Date(),
     };
 
-    const result = await db()
+    await db()
       .insert(schema.products)
       .values(row)
-      .onConflictDoUpdate({ target: schema.products.slug, set: row })
-      .returning({ id: schema.products.id });
+      .onConflictDoUpdate({ target: schema.products.slug, set: row });
 
-    // We can't easily tell inserted vs updated from onConflictDoUpdate.
-    // Approximate: check if a row was already there before by counting.
-    if (result.length > 0) {
-      created++;  // counts both new and updated as "processed"
-    }
     // eslint-disable-next-line no-console
-    console.log(`  ↻ ${slug.padEnd(40)} done`);
+    console.log(`  refreshed: ${slug}`);
   }
 
   // eslint-disable-next-line no-console
-  console.log(`\nDone. ${PRODUCTS.length} products upserted.`);
+  console.log(`\nDone. ${PRODUCTS.length} products upserted with placehold.co images.`);
 }
 
 main().catch((err) => {

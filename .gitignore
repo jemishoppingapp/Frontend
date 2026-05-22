@@ -52,3 +52,6 @@ yarn.lock
 # Misc
 *.log
 .cache
+# Install/fix scripts (kept local)
+install-*.sh
+fix-*.sh

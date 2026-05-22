@@ -22,7 +22,18 @@ remotePatterns: [
         hostname: 'source.unsplash.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        pathname: '/**',
+      },
     ],
+    
     // Reasonable for our product cards / hero on 3G phones.
     formats: ['image/avif', 'image/webp'],
   },
