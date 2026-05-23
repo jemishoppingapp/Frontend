@@ -42,6 +42,17 @@ remotePatterns: [
   eslint: {
     ignoreDuringBuilds: false,
   },
+  images: {
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    remotePatterns: [
+      { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'tailwindcss.com', pathname: '/plus-assets/img/**' },
+      { protocol: 'https', hostname: 'source.unsplash.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'placehold.co', pathname: '/**' },
+    ],
+  },
 
   // We use route group `(authed)` and force-dynamic on user pages, so we
   // intentionally avoid static optimization for any DB-touching route.

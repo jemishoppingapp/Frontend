@@ -55,3 +55,7 @@ yarn.lock
 # Install/fix scripts (kept local)
 install-*.sh
 fix-*.sh
+
+# Install/fix scripts (kept local)
+install-*.sh
+fix-*.sh
