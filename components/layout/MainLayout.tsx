@@ -1,17 +1,14 @@
 import { Header } from './Header';
 import { Footer } from './Footer';
+import { MobileBottomNav } from './MobileBottomNav';
 
-/**
- * MainLayout — wraps every public page with Header + Footer.
- * Auth pages (login/register) and admin pages opt out by living in
- * their own route group.
- */
 export function MainLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-surface">
       <Header />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 page-fade">{children}</main>
       <Footer />
+      <MobileBottomNav />
     </div>
   );
 }

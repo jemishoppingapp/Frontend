@@ -4,33 +4,20 @@ import { Container } from '@/components/Container';
 import { requireAuth } from '@/lib/session';
 import { ProfileCompleteForm } from './ProfileCompleteForm';
 
-export const metadata: Metadata = {
-  title: 'Complete your profile',
-  robots: { index: false },
-};
+export const metadata: Metadata = { title: 'Complete your profile', robots: { index: false } };
 
-export default async function ProfileCompletePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string }>;
-}) {
+export default async function ProfileCompletePage({ searchParams }: { searchParams: Promise<{ from?: string }>; }) {
   const user = await requireAuth();
   const sp = await searchParams;
-
-  // If profile is already complete and they came here directly (no
-  // `from` param indicating a redirect), bounce to /profile.
-  if (user.profile_completed && !sp.from) {
-    redirect('/profile');
-  }
+  if (user.profile_completed && !sp.from) redirect('/profile');
 
   return (
-    <Container className="py-6 sm:py-10 max-w-2xl">
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-        Complete your profile
-      </h1>
-      <p className="text-sm text-gray-500 mb-6">
-        We need a bit more information so sellers can reach you and deliver to the right place on campus.
-      </p>
+    <Container className="py-8 sm:py-12 max-w-2xl">
+      <div className="mb-8">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">Almost there</p>
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold text-fg leading-tight">Complete your profile</h1>
+        <p className="text-sm text-fg-2 mt-2">A bit more info so sellers can reach you and deliver to the right place.</p>
+      </div>
 
       <ProfileCompleteForm
         defaults={{

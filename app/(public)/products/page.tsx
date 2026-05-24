@@ -15,12 +15,7 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 24;
 
-type SearchParamsObj = {
-  q?: string;
-  category?: string;
-  sort?: string;
-  page?: string;
-};
+type SearchParamsObj = { q?: string; category?: string; sort?: string; page?: string };
 
 export async function generateMetadata({
   searchParams,
@@ -31,23 +26,13 @@ export async function generateMetadata({
   const q = sp.q?.trim();
   const category = sp.category;
   if (q) {
-    return {
-      title: `Search: ${q}`,
-      description: `Search results for "${q}" on JEMI.`,
-      robots: { index: false },
-    };
+    return { title: `Search: ${q}`, description: `Search results for "${q}".`, robots: { index: false } };
   }
   if (category && category !== 'all') {
     const niceName = category.charAt(0).toUpperCase() + category.slice(1);
-    return {
-      title: `${niceName} — Shop`,
-      description: `Shop ${niceName} on JEMI — LASU campus marketplace.`,
-    };
+    return { title: `${niceName}`, description: `Shop ${niceName} on JEMI.` };
   }
-  return {
-    title: 'Shop',
-    description: 'Browse all products on JEMI — LASU campus marketplace.',
-  };
+  return { title: 'Shop', description: 'Browse all products on JEMI.' };
 }
 
 async function fetchProducts(args: {
@@ -55,11 +40,7 @@ async function fetchProducts(args: {
   category?: string;
   sort: string;
   page: number;
-}): Promise<{
-  products: ProductCardData[];
-  total: number;
-  totalPages: number;
-}> {
+}): Promise<{ products: ProductCardData[]; total: number; totalPages: number }> {
   try {
     const conditions = [eq(schema.products.isActive, true)];
     if (args.category && args.category !== 'all') {
@@ -91,17 +72,8 @@ async function fetchProducts(args: {
     const skip = (args.page - 1) * PAGE_SIZE;
 
     const [rows, totalRows] = await Promise.all([
-      db()
-        .select()
-        .from(schema.products)
-        .where(where)
-        .orderBy(...orderBy)
-        .limit(PAGE_SIZE)
-        .offset(skip),
-      db()
-        .select({ count: sql<number>`count(*)::int` })
-        .from(schema.products)
-        .where(where),
+      db().select().from(schema.products).where(where).orderBy(...orderBy).limit(PAGE_SIZE).offset(skip),
+      db().select({ count: sql<number>`count(*)::int` }).from(schema.products).where(where),
     ]);
 
     const total = totalRows[0]?.count ?? 0;
@@ -119,14 +91,10 @@ async function fetchProducts(args: {
       inStock: d.inStock,
     }));
 
-    return {
-      products,
-      total,
-      totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    };
+    return { products, total, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('[products] fetchProducts failed:', err);
+    console.error('[products]', err);
     return { products: [], total: 0, totalPages: 1 };
   }
 }
@@ -137,26 +105,21 @@ async function ProductsResults({
   sort,
   page,
 }: {
-  q?: string;
-  category?: string;
-  sort: string;
-  page: number;
+  q?: string; category?: string; sort: string; page: number;
 }) {
   const { products, total, totalPages } = await fetchProducts({ q, category, sort, page });
 
   if (products.length === 0) {
     return (
-      <div className="text-center py-16">
-        <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-surface-muted mb-4">
-          <Search className="h-6 w-6 text-gray-400" />
+      <div className="text-center py-20">
+        <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-surface-1 mb-4">
+          <Search className="h-5 w-5 text-fg-2" />
         </div>
-        <h3 className="text-base font-semibold text-gray-900 mb-1">
+        <h3 className="text-base font-semibold text-fg mb-1">
           {q ? `No results for "${q}"` : 'No products found'}
         </h3>
-        <p className="text-sm text-gray-500 max-w-sm mx-auto">
-          {q
-            ? 'Try a different search term, or remove your category filter.'
-            : "There aren't any products in this category yet."}
+        <p className="text-sm text-fg-2 max-w-sm mx-auto">
+          {q ? 'Try a different search term, or remove your category filter.' : "There aren't any products in this category yet."}
         </p>
       </div>
     );
@@ -164,12 +127,12 @@ async function ProductsResults({
 
   return (
     <>
-      <div className="text-xs text-gray-500 mb-4">
-        Showing <span className="font-medium text-gray-700">{products.length}</span> of{' '}
-        <span className="font-medium text-gray-700">{total}</span> products
-      </div>
+      <p className="text-xs text-fg-2 mb-6">
+        Showing <span className="font-medium text-fg">{products.length}</span> of{' '}
+        <span className="font-medium text-fg">{total}</span> products
+      </p>
       <ProductGrid products={products} />
-      <div className="mt-10">
+      <div className="mt-12">
         <ProductPagination
           currentPage={page}
           totalPages={totalPages}
@@ -180,6 +143,8 @@ async function ProductsResults({
     </>
   );
 }
+
+function capitalize(s: string): string { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 export default async function ProductsPage({
   searchParams,
@@ -193,33 +158,23 @@ export default async function ProductsPage({
   const page = Math.max(1, parseInt(sp.page || '1', 10) || 1);
 
   return (
-    <Container className="py-6 sm:py-8">
-      <div className="mb-5 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
-          {q ? `Search: "${q}"` : category !== 'all' ? capitalize(category) : 'Shop all products'}
-        </h1>
-        <p className="text-sm text-gray-500">
-          Quality products, student-friendly prices, on-campus pickup.
+    <Container className="py-8 sm:py-12">
+      <div className="mb-8 sm:mb-10">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">
+          {q ? 'Search results' : 'Shop'}
         </p>
+        <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-semibold text-fg leading-tight">
+          {q ? `"${q}"` : category !== 'all' ? capitalize(category) : 'All products'}
+        </h1>
       </div>
 
-      <div className="mb-5 sm:mb-6">
+      <div className="mb-8">
         <ProductFilters activeCategory={category} activeSort={sort} />
       </div>
 
-      <Suspense
-        fallback={
-          <TimeoutDetector>
-            <ProductGridSkeleton count={12} />
-          </TimeoutDetector>
-        }
-      >
+      <Suspense fallback={<TimeoutDetector><ProductGridSkeleton count={12} /></TimeoutDetector>}>
         <ProductsResults q={q} category={category} sort={sort} page={page} />
       </Suspense>
     </Container>
   );
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

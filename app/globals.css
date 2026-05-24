@@ -1,54 +1,124 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------
- * Brand tokens (Tailwind v4 @theme — these are exposed as CSS vars
- * AND become Tailwind utilities like `bg-primary`, `text-primary`).
- * ------------------------------------------------------------------ */
-@theme {
-  --color-primary: #16a34a;          /* green-600 — primary CTA, links */
-  --color-primary-hover: #15803d;    /* green-700 — hover */
-  --color-primary-light: #dcfce7;    /* green-100 — soft bg, badges */
-  --color-primary-dark: #166534;     /* green-800 — text on light primary */
-  --color-primary-foreground: #ffffff;
-
-  /* Brand-adjacent surface colors */
-  --color-surface: #ffffff;
-  --color-surface-muted: #f9fafb;    /* gray-50 — page bg between sections */
-  --color-border-soft: #f3f4f6;      /* gray-100 — card borders */
-  --color-border: #e5e7eb;           /* gray-200 — input borders */
-
-  /* Fonts */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system,
-               BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-/* ------------------------------------------------------------------
- * Mobile-first base
- *
- * Goals:
- *  - 16px body (no auto-zoom on iOS form focus)
- *  - 44×44px tap targets minimum on touch devices
- *  - safe-area-inset padding for iOS notch / Android gesture bar
- *  - no horizontal scroll, no overflow surprises
- *  - smooth font rendering on cheap Android (Cleartype-equivalent off)
- * ------------------------------------------------------------------ */
-
+/* ----------------------------------------------------------------
+ * Color token system — every color resolves through CSS variables.
+ * Two values per token: light mode default, dark mode override on
+ * <html class="dark">. Dark mode is the BRAND DEFAULT — the no-FOWT
+ * script in layout.tsx adds the .dark class before first paint.
+ * ---------------------------------------------------------------- */
 :root {
-  color-scheme: light;
+  /* Surfaces — light mode */
+  --surface: 255 255 255;
+  --surface-1: 250 250 249;
+  --surface-2: 244 244 243;
+  --surface-muted: 247 247 245;
+
+  /* Borders */
+  --border: 229 229 226;
+  --border-soft: 240 240 237;
+  --border-strong: 212 212 208;
+
+  /* Text */
+  --fg: 17 17 17;
+  --fg-1: 64 64 60;
+  --fg-2: 115 115 110;
+  --fg-3: 163 163 156;
+  --fg-inverse: 255 255 255;
+
+  /* Brand */
+  --primary: 22 163 74;
+  --primary-hover: 21 128 61;
+  --primary-soft: 220 252 231;
+  --primary-fg: 255 255 255;
+  --primary-text: 22 101 52;
+
+  /* Status */
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+
+  /* Misc */
+  --shadow-color: 0 0 0;
+  --shadow-alpha: 0.06;
+  --shadow-alpha-strong: 0.12;
 }
+
+html.dark {
+  /* Surfaces — slight green warmth, not pure black */
+  --surface: 10 13 11;
+  --surface-1: 14 18 15;
+  --surface-2: 20 25 21;
+  --surface-muted: 18 22 19;
+
+  --border: 38 44 39;
+  --border-soft: 28 34 29;
+  --border-strong: 56 64 57;
+
+  --fg: 245 245 244;
+  --fg-1: 212 212 208;
+  --fg-2: 156 156 150;
+  --fg-3: 115 115 110;
+  --fg-inverse: 17 17 17;
+
+  /* Brand — brighter on dark for contrast */
+  --primary: 34 197 94;
+  --primary-hover: 74 222 128;
+  --primary-soft: 17 35 22;
+  --primary-fg: 5 10 6;
+  --primary-text: 134 239 172;
+
+  --success: 34 197 94;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+
+  --shadow-color: 0 0 0;
+  --shadow-alpha: 0.4;
+  --shadow-alpha-strong: 0.6;
+}
+
+@theme {
+  --color-surface: rgb(var(--surface));
+  --color-surface-1: rgb(var(--surface-1));
+  --color-surface-2: rgb(var(--surface-2));
+  --color-surface-muted: rgb(var(--surface-muted));
+
+  --color-border: rgb(var(--border));
+  --color-border-soft: rgb(var(--border-soft));
+  --color-border-strong: rgb(var(--border-strong));
+
+  --color-fg: rgb(var(--fg));
+  --color-fg-1: rgb(var(--fg-1));
+  --color-fg-2: rgb(var(--fg-2));
+  --color-fg-3: rgb(var(--fg-3));
+  --color-fg-inverse: rgb(var(--fg-inverse));
+
+  --color-primary: rgb(var(--primary));
+  --color-primary-hover: rgb(var(--primary-hover));
+  --color-primary-soft: rgb(var(--primary-soft));
+  --color-primary-foreground: rgb(var(--primary-fg));
+  --color-primary-text: rgb(var(--primary-text));
+
+  --color-success: rgb(var(--success));
+  --color-warning: rgb(var(--warning));
+  --color-danger: rgb(var(--danger));
+
+  --font-sans: var(--font-sans-loaded), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: var(--font-display-loaded), 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ----------------------------------------------------------------
+ * Base
+ * ---------------------------------------------------------------- */
+:root { color-scheme: light; }
+html.dark { color-scheme: dark; }
 
 html {
-  /* Prevent iOS from inflating text after orientation change */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  /* Smoother scroll, but only on devices that don't say they prefer reduced motion */
   scroll-behavior: smooth;
 }
-
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
+  html { scroll-behavior: auto; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -60,30 +130,29 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.5;
-  background: var(--color-surface);
-  color: #111827;          /* gray-900 */
+  background: rgb(var(--surface));
+  color: rgb(var(--fg));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Stop pinch-zoom from being a thing on form-focus */
   text-rendering: optimizeLegibility;
-  /* Edges flush on phones */
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Safe area on iOS notched devices.
- * We apply env(safe-area-inset-*) on the outermost layout container
- * (top for the sticky header, bottom for sticky CTA bars on
- * product/cart pages). */
+@media (max-width: 767px) {
+  body {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 56px);
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
 .safe-top    { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.safe-x      {
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-}
 
-/* 44px tap targets — only enforced where it counts (buttons, links
- * marked role="button" or class="tap"). Don't enforce on every <a>
- * because text inside body copy doesn't need to be 44px tall. */
 @media (hover: none) {
   button.tap, a.tap, [role="button"].tap, .tap {
     min-height: 44px;
@@ -91,44 +160,26 @@ body {
   }
 }
 
-/* Focus ring — visible, branded, accessible.
- * :focus-visible (not :focus) so mouse clicks don't show the ring,
- * only keyboard nav does. */
 *:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid rgb(var(--primary));
   outline-offset: 2px;
   border-radius: 2px;
 }
 
-/* Forms: 16px input text on iOS so we don't trigger zoom on focus.
- * On Android this is fine at any size, but iOS Safari zooms when
- * inputs < 16px and the visual jolt is jarring on a small phone. */
-input, textarea, select {
-  font-size: 16px;
-}
+input, textarea, select { font-size: 16px; }
 
-/* Selection — branded */
 ::selection {
-  background: var(--color-primary-light);
-  color: var(--color-primary-dark);
+  background: rgb(var(--primary-soft));
+  color: rgb(var(--primary-text));
 }
 
-/* Hide the number-input spinner that Chrome adds — it breaks our
- * custom quantity-stepper component */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-input[type="number"] {
-  -moz-appearance: textfield;
-}
+input[type="number"] { -moz-appearance: textfield; }
 
-/* ------------------------------------------------------------------
- * Utility: line-clamp shortcuts (Tailwind has these but we set
- * `display: -webkit-box` here so it works in older WebViews on
- * cheap Android phones too)
- * ------------------------------------------------------------------ */
 .line-clamp-1, .line-clamp-2, .line-clamp-3 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -138,46 +189,86 @@ input[type="number"] {
 .line-clamp-2 { -webkit-line-clamp: 2; }
 .line-clamp-3 { -webkit-line-clamp: 3; }
 
-/* ------------------------------------------------------------------
- * Glass surface — used sparingly. Three places only:
- *   1. Rating badge on product cards
- *   2. Hero CTA (when we land it in install-4a)
- *   3. Pickup-code card on /checkout/verify
- * Don't add `.glass` anywhere else — overuse is the AI-generated look.
- * ------------------------------------------------------------------ */
+/* Glass — used sparingly. Pickup-code hero + product card rating. */
 .glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 0.5px solid rgba(255, 255, 255, 0.5);
+}
+html.dark .glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
 }
 
-.glass-dark {
-  background: rgba(17, 24, 39, 0.75);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: white;
-}
-
-/* IntersectionObserver fade-in — used in install-5 for product grids.
- * Define the resting + visible states here so the class is ready when
- * we wire up the observer later. */
+/* Fade-in for IntersectionObserver reveals */
 .fade-in {
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  transition: opacity 0.5s cubic-bezier(0.2, 0.8, 0.2, 1),
+              transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .fade-in.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
-
-/* Disable transitions when user prefers reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .fade-in {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
   }
+}
+
+/* Shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--surface-1)) 0%,
+    rgb(var(--surface-2)) 50%,
+    rgb(var(--surface-1)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; background: rgb(var(--surface-1)); }
+}
+
+/* Hover-only-on-mouse helpers */
+.hover-lift {
+  transition: box-shadow 0.2s ease-out, transform 0.2s ease-out, border-color 0.2s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift:hover {
+    box-shadow: 0 10px 30px -10px rgba(var(--shadow-color) / var(--shadow-alpha-strong));
+    transform: translateY(-2px);
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .group:hover .group-hover-scale {
+    transform: scale(1.04);
+  }
+}
+.group-hover-scale {
+  transition: transform 0.5s ease-out;
+}
+
+/* Page transition */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-fade {
+  animation: page-fade-in 0.3s ease-out;
+}
+@media (prefers-reduced-motion: reduce) { .page-fade { animation: none; } }
+
+/* Theme toggle transitions */
+.theme-toggle-btn {
+  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
 }

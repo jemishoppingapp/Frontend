@@ -57,14 +57,13 @@ export default function HomePage() {
       <HomeHero />
       <TrustStrip />
 
-      {/* Categories */}
       <RevealOnScroll as="section">
-        <Container className="py-12 sm:py-16">
-          <div className="text-center max-w-xl mx-auto mb-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-primary font-semibold mb-3">
+        <Container className="py-16 sm:py-24">
+          <div className="max-w-xl mb-10">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-4">
               Shop by category
             </p>
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-gray-900">
+            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-semibold text-fg leading-tight">
               What do you need today?
             </h2>
           </div>
@@ -74,21 +73,20 @@ export default function HomePage() {
 
       <HowItWorks />
 
-      {/* Featured */}
       <RevealOnScroll as="section">
-        <Container className="py-12 sm:py-16">
-          <div className="flex items-end justify-between gap-3 mb-6 sm:mb-8">
+        <Container className="py-16 sm:py-24">
+          <div className="flex items-end justify-between gap-3 mb-10">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-primary font-semibold mb-2">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">
                 Featured
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-gray-900">
+              <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-semibold text-fg leading-tight">
                 This week's picks
               </h2>
             </div>
             <Link
               href="/products"
-              className="text-sm font-medium text-gray-600 hover:text-primary transition-colors inline-flex items-center gap-1 shrink-0"
+              className="hidden sm:inline-flex items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg transition-colors shrink-0 mb-1"
             >
               See all
               <ArrowRight className="h-4 w-4" />

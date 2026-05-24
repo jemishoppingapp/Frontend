@@ -7,14 +7,6 @@ import { Home, Store, ShoppingBag, Package, User } from 'lucide-react';
 import { useCartStore } from '@/store/cart';
 import { cn } from '@/lib/utils';
 
-/**
- * Mobile-only bottom nav. Five tabs: Home, Shop, Cart, Orders, Profile.
- * Hidden on md+ (≥768px). 56px tall. Adds the equivalent padding to
- * <body> via globals.css so content doesn't slide under it.
- *
- * The active tab is detected via pathname prefix. /products/[slug]
- * still highlights "Shop", /orders/JM-XXX still highlights "Orders".
- */
 const TABS = [
   { href: '/', label: 'Home', icon: Home, match: (p: string) => p === '/' },
   { href: '/products', label: 'Shop', icon: Store, match: (p: string) => p.startsWith('/products') },
@@ -28,11 +20,8 @@ export function MobileBottomNav() {
   const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
   const [hydrated, setHydrated] = useState(false);
 
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
+  useEffect(() => { setHydrated(true); }, []);
 
-  // Hide on auth pages — they have their own minimal layout.
   if (pathname.startsWith('/login') || pathname.startsWith('/register')) {
     return null;
   }
@@ -40,7 +29,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-border safe-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-md border-t border-border-soft"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <ul className="grid grid-cols-5 h-14">
@@ -54,7 +43,7 @@ export function MobileBottomNav() {
                 href={tab.href}
                 className={cn(
                   'relative flex flex-col items-center justify-center gap-0.5 h-full transition-colors',
-                  active ? 'text-primary' : 'text-gray-500 hover:text-gray-700'
+                  active ? 'text-primary' : 'text-fg-2 hover:text-fg'
                 )}
               >
                 <span className="relative">

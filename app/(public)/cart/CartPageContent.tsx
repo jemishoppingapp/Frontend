@@ -17,72 +17,53 @@ export function CartPageContent() {
 
   if (items.length === 0) {
     return (
-      <Container className="py-12 sm:py-16 text-center">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-surface-muted mb-4">
-          <ShoppingBag className="h-7 w-7 text-gray-400" />
+      <Container className="py-16 sm:py-24 text-center">
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-surface-1 mb-5">
+          <ShoppingBag className="h-7 w-7 text-fg-2" />
         </div>
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">
-          Your cart is empty
-        </h1>
-        <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
-          Browse products and add to your cart, they'll show up here.
-        </p>
-        <Button asChild variant="default" size="tap">
-          <Link href="/products">Start shopping</Link>
-        </Button>
+        <h1 className="font-display text-2xl font-semibold text-fg mb-2">Your cart is empty</h1>
+        <p className="text-sm text-fg-2 mb-7 max-w-sm mx-auto">Browse products and add to your cart, they'll show up here.</p>
+        <Button asChild variant="default" size="tap"><Link href="/products">Start shopping</Link></Button>
       </Container>
     );
   }
 
   return (
-    <Container className="py-6 sm:py-10">
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
-        Your Cart
-        <span className="ml-2 text-sm font-normal text-gray-500">
-          ({items.length} item{items.length === 1 ? '' : 's'})
-        </span>
-      </h1>
+    <Container className="py-8 sm:py-12">
+      <div className="mb-8">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">Cart</p>
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold text-fg leading-tight">
+          {items.length} item{items.length === 1 ? '' : 's'}
+        </h1>
+      </div>
 
-      <div className="grid lg:grid-cols-[1fr_360px] gap-8">
-        {/* Items */}
-        <div className="border border-border-soft rounded-lg bg-white">
-          <ul className="px-4 divide-y divide-border-soft">
-            {items.map((item) => (
-              <CartLineItem key={item.productId} item={item} />
-            ))}
+      <div className="grid lg:grid-cols-[1fr_380px] gap-10">
+        <div className="bg-surface-1 rounded-2xl border border-border-soft">
+          <ul className="px-5 divide-y divide-border-soft">
+            {items.map((item) => <CartLineItem key={item.productId} item={item} />)}
           </ul>
         </div>
 
-        {/* Summary */}
-        <aside className="border border-border-soft rounded-lg bg-white p-5 h-fit lg:sticky lg:top-28">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">
-            Order Summary
-          </h2>
-          <dl className="space-y-2 text-sm mb-4">
+        <aside className="bg-surface-1 border border-border-soft rounded-2xl p-6 h-fit lg:sticky lg:top-24">
+          <h2 className="font-display text-lg font-semibold text-fg mb-5">Summary</h2>
+          <dl className="space-y-3 text-sm mb-5">
             <div className="flex justify-between">
-              <dt className="text-gray-600">Subtotal</dt>
-              <dd className="font-medium text-gray-900">{formatCurrency(subtotal)}</dd>
+              <dt className="text-fg-2">Subtotal</dt>
+              <dd className="font-medium text-fg">{formatCurrency(subtotal)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-600">Delivery (LASU pickup)</dt>
-              <dd className="font-medium text-gray-900">{formatCurrency(DELIVERY_FEE)}</dd>
+              <dt className="text-fg-2">Delivery (LASU pickup)</dt>
+              <dd className="font-medium text-fg">{formatCurrency(DELIVERY_FEE)}</dd>
             </div>
-            <div className="flex justify-between pt-3 border-t border-border-soft">
-              <dt className="text-base font-bold text-gray-900">Total</dt>
-              <dd className="text-base font-bold text-gray-900">
-                {formatCurrency(total)}
-              </dd>
+            <div className="flex justify-between pt-4 border-t border-border-soft">
+              <dt className="font-display text-base font-semibold text-fg">Total</dt>
+              <dd className="font-display text-base font-semibold text-fg">{formatCurrency(total)}</dd>
             </div>
           </dl>
           <Button asChild variant="default" size="tap" className="w-full">
-            <Link href="/checkout">
-              Proceed to checkout
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <Link href="/checkout">Proceed to checkout<ArrowRight className="h-4 w-4" /></Link>
           </Button>
-          <p className="text-[11px] text-gray-500 mt-3 text-center">
-            Secure payment via Paystack. Pickup on LASU campus.
-          </p>
+          <p className="text-[11px] text-fg-3 mt-3 text-center">Secure payment via Paystack. Pickup on LASU campus.</p>
         </aside>
       </div>
     </Container>

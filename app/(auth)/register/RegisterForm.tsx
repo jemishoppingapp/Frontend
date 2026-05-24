@@ -17,7 +17,6 @@ export function RegisterForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -26,9 +25,6 @@ export function RegisterForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not create account');
-
-      // Account created + auto-signed in. Always go to profile complete
-      // since they haven't filled it yet.
       window.location.href = '/profile/complete';
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong');
@@ -37,90 +33,46 @@ export function RegisterForm() {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-border-soft p-6 sm:p-8 shadow-sm">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Create your account</h1>
-      <p className="text-sm text-gray-500 mb-6">
-        Start shopping for quality products at student-friendly prices.
-      </p>
+    <div className="bg-surface-1 border border-border-soft rounded-2xl p-7 sm:p-9">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">Start shopping</p>
+      <h1 className="font-display text-3xl font-semibold text-fg mb-2">Create account.</h1>
+      <p className="text-sm text-fg-2 mb-7">Quality products at student-friendly prices.</p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <Label htmlFor="name">Full name</Label>
-          <Input
-            id="name"
-            type="text"
-            autoComplete="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            minLength={2}
-            className="mt-1"
-            placeholder="Your full name"
-          />
+          <Label htmlFor="name" className="text-fg-1">Full name</Label>
+          <Input id="name" type="text" autoComplete="name" value={name}
+            onChange={(e) => setName(e.target.value)} required minLength={2}
+            className="mt-1.5" placeholder="Your full name" />
         </div>
-
         <div>
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            inputMode="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="mt-1"
-            placeholder="you@example.com"
-          />
+          <Label htmlFor="email" className="text-fg-1">Email</Label>
+          <Input id="email" type="email" autoComplete="email" inputMode="email"
+            value={email} onChange={(e) => setEmail(e.target.value)} required
+            className="mt-1.5" placeholder="you@example.com" />
         </div>
-
         <div>
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            className="mt-1"
-            placeholder="At least 8 characters"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Use at least 8 characters with a letter and a number.
-          </p>
+          <Label htmlFor="password" className="text-fg-1">Password</Label>
+          <Input id="password" type="password" autoComplete="new-password"
+            value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
+            className="mt-1.5" placeholder="At least 8 characters" />
+          <p className="text-[11px] text-fg-3 mt-1.5">8+ characters with a letter and a number.</p>
         </div>
 
         <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting}>
-          {submitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Creating account…
-            </>
-          ) : (
-            'Create account'
-          )}
+          {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" />Creating account…</>) : 'Create account'}
         </Button>
 
-        <p className="text-[11px] text-gray-500 text-center">
+        <p className="text-[11px] text-fg-3 text-center">
           By creating an account you agree to our{' '}
-          <Link href="/terms" className="text-primary hover:underline">
-            Terms
-          </Link>{' '}
-          and{' '}
-          <Link href="/privacy" className="text-primary hover:underline">
-            Privacy Policy
-          </Link>
-          .
+          <Link href="/terms" className="text-primary hover:underline">Terms</Link> and{' '}
+          <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
         </p>
       </form>
 
-      <p className="text-sm text-gray-600 text-center mt-6">
+      <p className="text-sm text-fg-2 text-center mt-6">
         Already have an account?{' '}
-        <Link href="/login" className="text-primary font-medium hover:text-primary-hover">
-          Sign in
-        </Link>
+        <Link href="/login" className="text-primary font-medium hover:text-primary-hover">Sign in</Link>
       </p>
     </div>
   );
