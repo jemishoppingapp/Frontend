@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Search, User } from 'lucide-react';
 import { Container } from '@/components/Container';
 import { HeaderMobileSearch } from './HeaderMobileSearch';
@@ -12,7 +13,15 @@ export async function Header() {
   return (
     <header className="sticky top-0 z-30 bg-surface/80 backdrop-blur-md border-b border-border-soft safe-top">
       <Container className="flex items-center gap-3 h-14 sm:h-16">
-        <Link href="/" className="flex items-center shrink-0">
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <Image
+            src="/jemi.webp"
+            alt="JEMI"
+            width={32}
+            height={32}
+            priority
+            className="h-7 w-7 sm:h-8 sm:w-8 object-contain"
+          />
           <span className="font-display text-xl sm:text-2xl font-bold tracking-tight text-fg">
             JEMI
           </span>

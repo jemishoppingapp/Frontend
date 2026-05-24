@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Container } from '@/components/Container';
 
 const NAV_LINKS = [
@@ -21,9 +22,18 @@ export function Footer() {
       <Container className="py-12 sm:py-16">
         <div className="grid grid-cols-2 gap-10 sm:grid-cols-3 mb-10">
           <div className="col-span-2 sm:col-span-1">
-            <div className="font-display text-3xl font-bold tracking-tight text-fg mb-4">
-              JEMI
-            </div>
+            <Link href="/" className="inline-flex items-center gap-2.5 mb-4">
+              <Image
+                src="/jemi.webp"
+                alt="JEMI"
+                width={40}
+                height={40}
+                className="h-9 w-9 object-contain"
+              />
+              <span className="font-display text-3xl font-bold tracking-tight text-fg">
+                JEMI
+              </span>
+            </Link>
             <p className="text-sm text-fg-2 max-w-xs leading-relaxed">
               Your campus marketplace for quality products at LASU.
               Order online, pick up on campus.
