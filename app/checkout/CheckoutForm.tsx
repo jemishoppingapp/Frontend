@@ -9,12 +9,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCartStore } from '@/store/cart';
 import { formatCurrency, cn } from '@/lib/utils';
+import { apiFetch, ApiError } from '@/lib/api-client';
 
 const DELIVERY_FEE = 500;
 const DELIVERY_ZONES = [
   { slug: 'lasu-iba-gate', name: 'LASU Iba Gate', description: 'Main entrance' },
   { slug: 'iyana-iba-gate', name: 'Iyana Iba Gate', description: 'Iyana Iba bus stop' },
 ];
+
+interface InitResp {
+  authorization_url: string;
+  reference: string;
+  orderId: string;
+  orderNumber: string;
+}
 
 export function CheckoutForm({ user }: { user: { id: string; email: string; name: string } }) {
   const items = useCartStore((s) => s.items);
@@ -42,26 +50,30 @@ export function CheckoutForm({ user }: { user: { id: string; email: string; name
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!description.trim()) {
-      toast.error('Please describe your pickup location on campus');
+      toast.error('Please describe your pickup location on campus.');
       return;
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/payment/initialize', {
+      const data = await apiFetch<InitResp>('/api/payment/initialize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
           deliveryZone: zone,
           deliveryDescription: description.trim(),
           customerNote: note.trim(),
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment initialization failed');
       window.location.href = data.authorization_url;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+        if (err.code === 'PROFILE_INCOMPLETE') {
+          setTimeout(() => { window.location.href = '/profile/complete?from=/checkout'; }, 1500);
+        }
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
       setSubmitting(false);
     }
   }

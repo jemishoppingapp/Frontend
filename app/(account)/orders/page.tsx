@@ -6,6 +6,7 @@ import { Container } from '@/components/Container';
 import { Button } from '@/components/ui/button';
 import { requireAuth } from '@/lib/session';
 import { db, schema } from '@/db';
+import { expireStaleOrders } from '@/lib/checkout';
 import { formatCurrency, cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'My Orders', robots: { index: false } };
@@ -31,6 +32,15 @@ const STATUS_COLOR = {
 
 export default async function OrdersPage() {
   const user = await requireAuth();
+
+  // Lazy cleanup: expire any pending orders older than 1h before
+  // showing the list. Safe net if the cron job hasn't run yet.
+  // Fire-and-forget — don't block the page on it.
+  expireStaleOrders().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('[/orders] lazy cleanup failed:', err);
+  });
+
   const orders = await db()
     .select()
     .from(schema.orders)

@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '@/db';
+import { ok, fail, withErrorHandling } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -9,8 +9,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = await params;
-  try {
+  return withErrorHandling(async () => {
+    const { slug } = await params;
     const rows = await db()
       .select()
       .from(schema.products)
@@ -18,12 +18,8 @@ export async function GET(
       .limit(1);
     const product = rows[0];
     if (!product) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      return fail('NOT_FOUND', "Sorry, we couldn't find that product.");
     }
-    return NextResponse.json({ product });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[api/products/slug]', err);
-    return NextResponse.json({ error: 'Unable to fetch product' }, { status: 500 });
-  }
+    return ok({ product });
+  });
 }

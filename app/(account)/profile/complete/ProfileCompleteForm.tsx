@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiFetch, ApiError } from '@/lib/api-client';
 
 const LEVELS = ['100 Level', '200 Level', '300 Level', '400 Level', '500 Level', 'Postgraduate', 'Staff', 'Non-student'];
 
@@ -17,24 +18,31 @@ export function ProfileCompleteForm({ defaults, fromPath }: { defaults: Defaults
   const [address, setAddress] = useState(defaults.address);
   const [department, setDepartment] = useState(defaults.department);
   const [level, setLevel] = useState(defaults.level);
+  const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setFieldError(null);
     try {
-      const res = await fetch('/api/user/profile/complete', {
+      await apiFetch<{ saved: boolean }>('/api/user/profile/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, alt_phone: altPhone, address, department, level }),
+        body: { phone, alt_phone: altPhone, address, department, level },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Save failed');
       toast.success('Profile complete');
       const next = fromPath && fromPath.startsWith('/') ? fromPath : '/profile';
       window.location.href = next;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed');
+      if (err instanceof ApiError) {
+        if (err.field) {
+          setFieldError({ field: err.field, message: err.message });
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        toast.error('Save failed');
+      }
       setSubmitting(false);
     }
   }
@@ -47,7 +55,11 @@ export function ProfileCompleteForm({ defaults, fromPath }: { defaults: Defaults
           <Input id="phone" type="tel" inputMode="tel" autoComplete="tel"
             value={phone} onChange={(e) => setPhone(e.target.value)} required
             placeholder="08012345678" className="mt-1.5 bg-surface" />
-          <p className="text-[11px] text-fg-3 mt-1">Nigerian number.</p>
+          {fieldError?.field === 'phone' ? (
+            <p className="text-xs text-danger mt-1">{fieldError.message}</p>
+          ) : (
+            <p className="text-[11px] text-fg-3 mt-1">Nigerian number.</p>
+          )}
         </div>
         <div>
           <Label htmlFor="altPhone" className="text-fg-1">Alt phone (optional)</Label>
@@ -60,6 +72,7 @@ export function ProfileCompleteForm({ defaults, fromPath }: { defaults: Defaults
         <Label htmlFor="address" className="text-fg-1">Address (on/near campus) <span className="text-danger">*</span></Label>
         <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} required minLength={5}
           placeholder="e.g. Hall 4, Block C, Room 12" className="mt-1.5 bg-surface" />
+        {fieldError?.field === 'address' && (<p className="text-xs text-danger mt-1">{fieldError.message}</p>)}
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">

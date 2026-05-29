@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -6,29 +5,24 @@ import { db, schema } from '@/db';
 import { signToken } from '@/lib/auth';
 import { setAuthCookie } from '@/lib/cookies';
 import { registerSchema } from '@/lib/validators';
+import { ok, fail, failValidation, withErrorHandling } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const BCRYPT_ROUNDS = 12;  // ~250ms per hash on modern CPU
+const BCRYPT_ROUNDS = 12;
 
 export async function POST(req: Request) {
-  let parsed: z.infer<typeof registerSchema>;
-  try {
-    const body = await req.json();
-    parsed = registerSchema.parse(body);
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: err.errors[0]?.message ?? 'Invalid input' },
-        { status: 400 }
-      );
+  return withErrorHandling(async () => {
+    let parsed: z.infer<typeof registerSchema>;
+    try {
+      const body = await req.json();
+      parsed = registerSchema.parse(body);
+    } catch (err) {
+      if (err instanceof z.ZodError) return failValidation(err);
+      return fail('VALIDATION_ERROR', 'Please check your inputs and try again.');
     }
-    return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
-  }
 
-  try {
-    // Check existing user
     const existing = await db()
       .select({ id: schema.users.id })
       .from(schema.users)
@@ -36,14 +30,9 @@ export async function POST(req: Request) {
       .limit(1);
 
     if (existing.length > 0) {
-      // Generic message — don't reveal which emails are registered
-      return NextResponse.json(
-        { error: 'Could not create account. Try logging in instead.' },
-        { status: 409 }
-      );
+      return fail('EMAIL_TAKEN', 'An account with that email already exists. Try signing in instead.', 'email');
     }
 
-    // Hash password and insert
     const hash = await bcrypt.hash(parsed.password, BCRYPT_ROUNDS);
 
     await db().insert(schema.users).values({
@@ -54,8 +43,6 @@ export async function POST(req: Request) {
       profileCompleted: false,
     });
 
-    // Read back the row to get the id (Drizzle neon-http doesn't
-    // support .returning() with all drivers consistently)
     const rows = await db()
       .select()
       .from(schema.users)
@@ -64,18 +51,13 @@ export async function POST(req: Request) {
 
     const user = rows[0];
     if (!user) {
-      throw new Error('Insert succeeded but user lookup failed');
+      return fail('SERVER_ERROR', 'We saved your account but could not sign you in. Please try logging in.');
     }
 
-    // Sign in immediately — set cookie
-    const token = await signToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    const token = await signToken({ sub: user.id, email: user.email, role: user.role });
     await setAuthCookie(token);
 
-    return NextResponse.json({
+    return ok({
       user: {
         id: user.id,
         email: user.email,
@@ -84,12 +66,5 @@ export async function POST(req: Request) {
         profile_completed: user.profileCompleted,
       },
     });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[api/auth/register]', err);
-    return NextResponse.json(
-      { error: 'Could not create account. Please try again.' },
-      { status: 500 }
-    );
-  }
+  });
 }

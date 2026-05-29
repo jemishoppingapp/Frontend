@@ -7,27 +7,40 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiFetch, ApiError } from '@/lib/api-client';
+
+interface RegisterResp {
+  user: { id: string; email: string; name: string; role: string; profile_completed: boolean };
+}
 
 export function RegisterForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setFieldError(null);
+
     try {
-      const res = await fetch('/api/auth/register', {
+      await apiFetch<RegisterResp>('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: { name, email, password },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not create account');
       window.location.href = '/profile/complete';
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+      if (err instanceof ApiError) {
+        if (err.field) {
+          setFieldError({ field: err.field, message: err.message });
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
       setSubmitting(false);
     }
   }
@@ -44,19 +57,25 @@ export function RegisterForm() {
           <Input id="name" type="text" autoComplete="name" value={name}
             onChange={(e) => setName(e.target.value)} required minLength={2}
             className="mt-1.5" placeholder="Your full name" />
+          {fieldError?.field === 'name' && (<p className="text-xs text-danger mt-1">{fieldError.message}</p>)}
         </div>
         <div>
           <Label htmlFor="email" className="text-fg-1">Email</Label>
           <Input id="email" type="email" autoComplete="email" inputMode="email"
             value={email} onChange={(e) => setEmail(e.target.value)} required
             className="mt-1.5" placeholder="you@example.com" />
+          {fieldError?.field === 'email' && (<p className="text-xs text-danger mt-1">{fieldError.message}</p>)}
         </div>
         <div>
           <Label htmlFor="password" className="text-fg-1">Password</Label>
           <Input id="password" type="password" autoComplete="new-password"
             value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
             className="mt-1.5" placeholder="At least 8 characters" />
-          <p className="text-[11px] text-fg-3 mt-1.5">8+ characters with a letter and a number.</p>
+          {fieldError?.field === 'password' ? (
+            <p className="text-xs text-danger mt-1">{fieldError.message}</p>
+          ) : (
+            <p className="text-[11px] text-fg-3 mt-1.5">8+ characters with a letter and a number.</p>
+          )}
         </div>
 
         <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting}>

@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Copy, MapPin, ArrowRight, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, Copy, MapPin, ArrowRight, Loader2, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/store/cart';
 import { formatCurrency } from '@/lib/utils';
+import { apiFetch, ApiError } from '@/lib/api-client';
 
-interface VerifyResult {
-  status: 'paid' | 'pending' | 'failed';
+interface VerifyResp {
+  status: 'paid';
   orderNumber: string;
   pickupCode: string;
   pickupLocation: string;
@@ -19,26 +20,27 @@ interface VerifyResult {
 export function VerifyClient({ reference }: { reference: string }) {
   const clearCart = useCartStore((s) => s.clear);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<VerifyResult | null>(null);
+  const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
+  const [result, setResult] = useState<VerifyResp | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/payment/verify', {
+        const data = await apiFetch<VerifyResp>('/api/payment/verify', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference }),
+          body: { reference },
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Verification failed');
         if (cancelled) return;
         setResult(data);
-        if (data.status === 'paid') clearCart();
+        clearCart();
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Verification failed');
+        if (err instanceof ApiError) {
+          setErrorState({ code: err.code, message: err.message });
+        } else {
+          setErrorState({ code: 'UNKNOWN', message: 'Verification failed. Please try again.' });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -55,16 +57,22 @@ export function VerifyClient({ reference }: { reference: string }) {
     );
   }
 
-  if (error || !result || result.status !== 'paid') {
+  if (errorState) {
+    // PAYMENT_VERIFY_FAILED has its own "check back later" message
+    // PAYMENT_NOT_SUCCESSFUL means actual decline
+    const isProcessing = errorState.code === 'PAYMENT_VERIFY_FAILED';
+    const Icon = isProcessing ? Clock : XCircle;
+    const iconBg = isProcessing ? 'bg-warning/10' : 'bg-danger/10';
+    const iconColor = isProcessing ? 'text-warning' : 'text-danger';
+    const title = isProcessing ? 'Payment processing' : 'Payment not confirmed';
+
     return (
       <div className="text-center py-12">
-        <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-danger/10 mb-5">
-          <XCircle className="h-7 w-7 text-danger" />
+        <div className={`inline-flex items-center justify-center h-14 w-14 rounded-full ${iconBg} mb-5`}>
+          <Icon className={`h-7 w-7 ${iconColor}`} />
         </div>
-        <h1 className="font-display text-2xl font-semibold text-fg mb-2">Payment not confirmed</h1>
-        <p className="text-sm text-fg-2 mb-6 max-w-md mx-auto">
-          {error || "We couldn't confirm your payment yet. If you were charged, it'll be applied automatically. Contact support if it persists."}
-        </p>
+        <h1 className="font-display text-2xl font-semibold text-fg mb-2">{title}</h1>
+        <p className="text-sm text-fg-2 mb-6 max-w-md mx-auto">{errorState.message}</p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild variant="default" size="tap"><Link href="/orders">View my orders</Link></Button>
           <Button asChild variant="outline" size="tap"><Link href="/products">Continue shopping</Link></Button>
@@ -72,6 +80,8 @@ export function VerifyClient({ reference }: { reference: string }) {
       </div>
     );
   }
+
+  if (!result) return null;
 
   return (
     <div>
@@ -88,11 +98,8 @@ export function VerifyClient({ reference }: { reference: string }) {
         </p>
       </div>
 
-      {/* Pickup code hero — the moment */}
       <div className="glass rounded-3xl p-8 sm:p-10 mb-6 text-center border border-primary-soft">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 mb-3 font-medium">
-          Your pickup code
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 mb-3 font-medium">Your pickup code</p>
         <div className="font-mono font-bold tracking-[0.35em] text-primary text-4xl sm:text-6xl mb-5 leading-none">
           {result.pickupCode}
         </div>

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiFetch, ApiError } from '@/lib/api-client';
 import type { CurrentUser } from '@/lib/session';
 
 export function ProfileForm({ user }: { user: CurrentUser }) {
@@ -22,6 +23,7 @@ export function ProfileForm({ user }: { user: CurrentUser }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordFieldError, setPasswordFieldError] = useState<{ field?: string; message: string } | null>(null);
 
   const [signingOut, setSigningOut] = useState(false);
 
@@ -29,17 +31,14 @@ export function ProfileForm({ user }: { user: CurrentUser }) {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const res = await fetch('/api/user/profile', {
+      await apiFetch<{ saved: boolean }>('/api/user/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'profile', name, nickname, alt_phone: altPhone, address, department }),
+        body: { kind: 'profile', name, nickname, alt_phone: altPhone, address, department },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Save failed');
       toast.success('Profile saved');
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed');
+      toast.error(err instanceof ApiError ? err.message : 'Save failed');
     } finally {
       setSavingProfile(false);
     }
@@ -48,18 +47,24 @@ export function ProfileForm({ user }: { user: CurrentUser }) {
   async function savePassword(e: React.FormEvent) {
     e.preventDefault();
     setSavingPassword(true);
+    setPasswordFieldError(null);
     try {
-      const res = await fetch('/api/user/profile', {
+      await apiFetch<{ saved: boolean }>('/api/user/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'password', current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword }),
+        body: { kind: 'password', current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Password change failed');
       toast.success('Password updated');
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Password change failed');
+      if (err instanceof ApiError) {
+        if (err.field) {
+          setPasswordFieldError({ field: err.field, message: err.message });
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        toast.error('Password change failed');
+      }
     } finally {
       setSavingPassword(false);
     }
@@ -68,7 +73,7 @@ export function ProfileForm({ user }: { user: CurrentUser }) {
   async function handleSignOut() {
     setSigningOut(true);
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await apiFetch('/api/auth/logout', { method: 'POST' });
       window.location.href = '/';
     } catch {
       setSigningOut(false);
@@ -128,17 +133,27 @@ export function ProfileForm({ user }: { user: CurrentUser }) {
             <Label htmlFor="currentPassword" className="text-fg-1">Current password</Label>
             <Input id="currentPassword" type="password" autoComplete="current-password"
               value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="mt-1.5 bg-surface" />
+            {passwordFieldError?.field === 'current_password' && (
+              <p className="text-xs text-danger mt-1">{passwordFieldError.message}</p>
+            )}
           </div>
           <div>
             <Label htmlFor="newPassword" className="text-fg-1">New password</Label>
             <Input id="newPassword" type="password" autoComplete="new-password"
               value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} className="mt-1.5 bg-surface" />
-            <p className="text-[11px] text-fg-3 mt-1">8+ characters with a letter and a number.</p>
+            {passwordFieldError?.field === 'new_password' ? (
+              <p className="text-xs text-danger mt-1">{passwordFieldError.message}</p>
+            ) : (
+              <p className="text-[11px] text-fg-3 mt-1">8+ characters with a letter and a number.</p>
+            )}
           </div>
           <div>
             <Label htmlFor="confirmPassword" className="text-fg-1">Confirm new password</Label>
             <Input id="confirmPassword" type="password" autoComplete="new-password"
               value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1.5 bg-surface" />
+            {passwordFieldError?.field === 'confirm_password' && (
+              <p className="text-xs text-danger mt-1">{passwordFieldError.message}</p>
+            )}
           </div>
         </div>
         <div className="mt-5">

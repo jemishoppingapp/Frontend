@@ -3,5 +3,13 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "npm install",
-  "regions": ["fra1"]
+  "regions": [
+    "fra1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-orders",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }

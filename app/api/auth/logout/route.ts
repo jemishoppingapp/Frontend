@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server';
 import { clearAuthCookie } from '@/lib/cookies';
+import { ok, withErrorHandling } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST() {
-  await clearAuthCookie();
-  return NextResponse.json({ ok: true });
+  return withErrorHandling(async () => {
+    await clearAuthCookie();
+    return ok({ signedOut: true });
+  });
 }

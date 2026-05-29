@@ -7,23 +7,28 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiFetch, ApiError } from '@/lib/api-client';
+
+interface LoginResp {
+  user: { id: string; email: string; name: string; role: string; profile_completed: boolean };
+}
 
 export function LoginForm({ fromPath }: { fromPath?: string }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setFieldError(null);
+
     try {
-      const res = await fetch('/api/auth/login', {
+      const data = await apiFetch<LoginResp>('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: { email, password },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Sign-in failed');
 
       const next =
         fromPath && fromPath.startsWith('/') ? fromPath :
@@ -31,7 +36,15 @@ export function LoginForm({ fromPath }: { fromPath?: string }) {
         '/';
       window.location.href = next;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+      if (err instanceof ApiError) {
+        if (err.field) {
+          setFieldError({ field: err.field, message: err.message });
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
       setSubmitting(false);
     }
   }
@@ -48,6 +61,9 @@ export function LoginForm({ fromPath }: { fromPath?: string }) {
           <Input id="email" type="email" autoComplete="email" inputMode="email"
             value={email} onChange={(e) => setEmail(e.target.value)} required
             className="mt-1.5" placeholder="you@example.com" />
+          {fieldError?.field === 'email' && (
+            <p className="text-xs text-danger mt-1">{fieldError.message}</p>
+          )}
         </div>
 
         <div>
@@ -55,6 +71,9 @@ export function LoginForm({ fromPath }: { fromPath?: string }) {
           <Input id="password" type="password" autoComplete="current-password"
             value={password} onChange={(e) => setPassword(e.target.value)} required
             className="mt-1.5" placeholder="••••••••" />
+          {fieldError?.field === 'password' && (
+            <p className="text-xs text-danger mt-1">{fieldError.message}</p>
+          )}
         </div>
 
         <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting}>
