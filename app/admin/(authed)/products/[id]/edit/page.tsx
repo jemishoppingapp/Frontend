@@ -42,7 +42,11 @@ export default async function AdminProductEditPage({
         isActive: product.isActive,
         isFeatured: product.isFeatured,
         features: product.features ?? [],
-        imageUrl: product.images?.[0]?.url ?? '',
+        images: (product.images ?? []).map((img) => ({
+          url: img.url,
+          publicId: img.publicId ?? '',
+          alt: img.alt ?? product.name,
+        })),
       }} />
     </div>
   );

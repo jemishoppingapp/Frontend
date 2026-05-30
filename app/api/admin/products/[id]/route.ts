@@ -7,6 +7,12 @@ import { ok, fail, failValidation, withErrorHandling } from '@/lib/api';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const imageSchema = z.object({
+  url: z.string().trim().url(),
+  publicId: z.string().trim().max(200),
+  alt: z.string().trim().max(200),
+});
+
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(5000).optional(),
@@ -19,7 +25,7 @@ const patchSchema = z.object({
   isActive: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
   features: z.array(z.string().trim().max(200)).optional(),
-  imageUrl: z.string().trim().url().nullable().optional(),
+  images: z.array(imageSchema).max(5).optional(),
 });
 
 export async function PATCH(
@@ -44,7 +50,7 @@ export async function PATCH(
       return fail('VALIDATION_ERROR', 'Invalid input.');
     }
 
-    const existing = await db().select({ images: schema.products.images, name: schema.products.name })
+    const existing = await db().select({ id: schema.products.id })
       .from(schema.products).where(eq(schema.products.id, id)).limit(1);
     if (existing.length === 0) {
       return fail('NOT_FOUND', 'Product does not exist.');
@@ -62,15 +68,7 @@ export async function PATCH(
     if (parsed.isActive !== undefined) updates.isActive = parsed.isActive;
     if (parsed.isFeatured !== undefined) updates.isFeatured = parsed.isFeatured;
     if (parsed.features !== undefined) updates.features = parsed.features;
-
-    // Image: replace first image or set to single-item array
-    if (parsed.imageUrl !== undefined) {
-      if (parsed.imageUrl) {
-        updates.images = [{ url: parsed.imageUrl, alt: parsed.name ?? existing[0].name }];
-      } else {
-        updates.images = [];
-      }
-    }
+    if (parsed.images !== undefined) updates.images = parsed.images;
 
     await db().update(schema.products).set(updates).where(eq(schema.products.id, id));
     return ok({ saved: true });
@@ -96,7 +94,6 @@ export async function DELETE(
       return fail('NOT_FOUND', 'Product does not exist.');
     }
 
-    // Soft delete — preserves order history
     await db().update(schema.products)
       .set({ isActive: false, updatedAt: new Date() })
       .where(eq(schema.products.id, id));

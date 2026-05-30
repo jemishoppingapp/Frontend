@@ -10,41 +10,46 @@ import { Label } from '@/components/ui/label';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { CloudinaryUploader, type UploadedImage } from '@/components/admin/CloudinaryUploader';
 
-interface ProductData {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  price: number;
-  originalPrice: number | null;
-  category: string;
-  seller: string;
-  stockQuantity: number;
-  inStock: boolean;
-  isActive: boolean;
-  isFeatured: boolean;
-  features: string[];
-  images: UploadedImage[];
-}
-
 const CATEGORIES = ['fashion', 'electronics', 'food', 'accessories'];
 
-export function ProductEditForm({ product }: { product: ProductData }) {
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export function NewProductForm() {
   const router = useRouter();
-  const [name, setName] = useState(product.name);
-  const [description, setDescription] = useState(product.description);
-  const [price, setPrice] = useState(String(product.price));
-  const [originalPrice, setOriginalPrice] = useState(product.originalPrice ? String(product.originalPrice) : '');
-  const [category, setCategory] = useState(product.category);
-  const [seller, setSeller] = useState(product.seller);
-  const [stockQuantity, setStockQuantity] = useState(String(product.stockQuantity));
-  const [inStock, setInStock] = useState(product.inStock);
-  const [isActive, setIsActive] = useState(product.isActive);
-  const [isFeatured, setIsFeatured] = useState(product.isFeatured);
-  const [features, setFeatures] = useState<string[]>(product.features.length > 0 ? product.features : ['']);
-  const [images, setImages] = useState<UploadedImage[]>(product.images);
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [originalPrice, setOriginalPrice] = useState('');
+  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [seller, setSeller] = useState('JEMI Store');
+  const [stockQuantity, setStockQuantity] = useState('10');
+  const [inStock, setInStock] = useState(true);
+  const [isActive, setIsActive] = useState(true);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [features, setFeatures] = useState<string[]>(['']);
+  const [images, setImages] = useState<UploadedImage[]>([]);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+
+  function handleNameChange(value: string) {
+    setName(value);
+    if (!slugTouched) {
+      setSlug(slugify(value));
+    }
+  }
+
+  function handleSlugChange(value: string) {
+    setSlug(slugify(value));
+    setSlugTouched(true);
+  }
 
   function addFeature() { setFeatures([...features, '']); }
   function removeFeature(idx: number) { setFeatures(features.filter((_, i) => i !== idx)); }
@@ -56,17 +61,20 @@ export function ProductEditForm({ product }: { product: ProductData }) {
     e.preventDefault();
     setSaving(true);
     try {
+      if (!slug) throw new Error('Slug is required (it autofills from name).');
       const priceNum = parseFloat(price);
       const stockNum = parseInt(stockQuantity, 10);
       const origNum = originalPrice ? parseFloat(originalPrice) : null;
 
       if (Number.isNaN(priceNum) || priceNum < 0) throw new Error('Price must be a positive number.');
       if (Number.isNaN(stockNum) || stockNum < 0) throw new Error('Stock must be a non-negative integer.');
+      if (images.length === 0) throw new Error('Please add at least one image.');
 
-      await apiFetch(`/api/admin/products/${product.id}`, {
-        method: 'PATCH',
+      const created = await apiFetch<{ id: string; slug: string }>(`/api/admin/products`, {
+        method: 'POST',
         body: {
           name,
+          slug,
           description,
           price: priceNum,
           originalPrice: origNum,
@@ -84,33 +92,18 @@ export function ProductEditForm({ product }: { product: ProductData }) {
           })),
         },
       });
-      toast.success('Product saved');
-      router.refresh();
+      toast.success('Product created');
+      router.push(`/admin/products/${created.id}/edit`);
     } catch (err) {
       if (err instanceof ApiError) {
         toast.error(err.message);
       } else if (err instanceof Error) {
         toast.error(err.message);
       } else {
-        toast.error('Save failed');
+        toast.error('Could not create product');
       }
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!confirm(`Soft-delete "${product.name}"? It will be hidden from buyers but order history is preserved. You can re-enable later by editing.`)) {
-      return;
-    }
-    setDeleting(true);
-    try {
-      await apiFetch(`/api/admin/products/${product.id}`, { method: 'DELETE' });
-      toast.success('Product hidden');
-      router.push('/admin/products');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Delete failed');
-      setDeleting(false);
     }
   }
 
@@ -120,13 +113,14 @@ export function ProductEditForm({ product }: { product: ProductData }) {
         <h2 className="font-display text-base font-semibold text-fg mb-5">Basics</h2>
         <div className="space-y-4">
           <div>
-            <Label htmlFor="name" className="text-fg-1">Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1.5 bg-surface" />
+            <Label htmlFor="name" className="text-fg-1">Name <span className="text-danger">*</span></Label>
+            <Input id="name" value={name} onChange={(e) => handleNameChange(e.target.value)} required className="mt-1.5 bg-surface" />
           </div>
           <div>
-            <Label htmlFor="slug" className="text-fg-1">Slug</Label>
-            <Input id="slug" value={product.slug} disabled className="mt-1.5 bg-surface-1 font-mono text-xs" />
-            <p className="text-[11px] text-fg-3 mt-1">Slug can't be changed (would break links).</p>
+            <Label htmlFor="slug" className="text-fg-1">Slug <span className="text-danger">*</span></Label>
+            <Input id="slug" value={slug} onChange={(e) => handleSlugChange(e.target.value)} required
+              className="mt-1.5 bg-surface font-mono text-xs" placeholder="auto-fills from name" />
+            <p className="text-[11px] text-fg-3 mt-1">URL slug (lowercase, dashes). Can't be changed later.</p>
           </div>
           <div>
             <Label htmlFor="description" className="text-fg-1">Description</Label>
@@ -155,9 +149,9 @@ export function ProductEditForm({ product }: { product: ProductData }) {
         <h2 className="font-display text-base font-semibold text-fg mb-5">Pricing & stock</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="price" className="text-fg-1">Price (₦)</Label>
+            <Label htmlFor="price" className="text-fg-1">Price (₦) <span className="text-danger">*</span></Label>
             <Input id="price" type="number" inputMode="numeric" step="0.01" min="0" value={price}
-              onChange={(e) => setPrice(e.target.value)} required className="mt-1.5 bg-surface" />
+              onChange={(e) => setPrice(e.target.value)} required className="mt-1.5 bg-surface" placeholder="0" />
           </div>
           <div>
             <Label htmlFor="originalPrice" className="text-fg-1">Original price (₦, optional)</Label>
@@ -173,7 +167,7 @@ export function ProductEditForm({ product }: { product: ProductData }) {
       </section>
 
       <section className="bg-surface border border-border-soft rounded-2xl p-6">
-        <h2 className="font-display text-base font-semibold text-fg mb-5">Images</h2>
+        <h2 className="font-display text-base font-semibold text-fg mb-5">Images <span className="text-danger text-sm">*</span></h2>
         <p className="text-xs text-fg-2 mb-4">First image is the cover. Up to 5 images.</p>
         <CloudinaryUploader
           images={images}
@@ -184,7 +178,7 @@ export function ProductEditForm({ product }: { product: ProductData }) {
       </section>
 
       <section className="bg-surface border border-border-soft rounded-2xl p-6">
-        <h2 className="font-display text-base font-semibold text-fg mb-5">Features</h2>
+        <h2 className="font-display text-base font-semibold text-fg mb-5">Features (optional)</h2>
         <div className="space-y-2">
           {features.map((f, idx) => (
             <div key={idx} className="flex items-center gap-2">
@@ -215,11 +209,7 @@ export function ProductEditForm({ product }: { product: ProductData }) {
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Button type="submit" variant="default" size="tap" disabled={saving}>
-          {saving ? (<><Loader2 className="h-4 w-4 animate-spin" />Saving…</>) : 'Save changes'}
-        </Button>
-        <Button type="button" variant="outline" size="tap" onClick={handleDelete} disabled={deleting}
-          className="text-danger hover:bg-danger/5">
-          {deleting ? (<><Loader2 className="h-4 w-4 animate-spin" />Deleting…</>) : 'Hide product'}
+          {saving ? (<><Loader2 className="h-4 w-4 animate-spin" />Creating…</>) : 'Create product'}
         </Button>
       </div>
     </form>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
-import { ChevronRight, Search, Star } from 'lucide-react';
+import { ChevronRight, Plus, Search, Star } from 'lucide-react';
 import { db, schema } from '@/db';
 import { formatCurrency, cn } from '@/lib/utils';
 
@@ -65,6 +65,12 @@ export default async function AdminProductsPage({
           <h1 className="font-display text-2xl sm:text-3xl font-semibold text-fg mb-1">Products</h1>
           <p className="text-sm text-fg-2">{total} product{total === 1 ? '' : 's'}</p>
         </div>
+        <Link href="/admin/products/new"
+          className="inline-flex items-center gap-1.5 px-4 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary-hover shrink-0">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">New product</span>
+          <span className="sm:hidden">New</span>
+        </Link>
       </div>
 
       <div className="flex flex-col gap-3 mb-6">
@@ -72,16 +78,11 @@ export default async function AdminProductsPage({
           {CATEGORIES.map((c) => {
             const active = c === category;
             return (
-              <Link
-                key={c}
-                href={buildHref({ category: c, page: '1' })}
+              <Link key={c} href={buildHref({ category: c, page: '1' })}
                 className={cn(
                   'shrink-0 inline-flex items-center px-3 h-9 rounded-full text-xs font-medium transition-colors border capitalize',
-                  active
-                    ? 'bg-fg text-fg-inverse border-fg'
-                    : 'bg-surface text-fg-2 border-border hover:bg-surface-1'
-                )}
-              >
+                  active ? 'bg-fg text-fg-inverse border-fg' : 'bg-surface text-fg-2 border-border hover:bg-surface-1'
+                )}>
                 {c}
               </Link>
             );
@@ -92,13 +93,8 @@ export default async function AdminProductsPage({
           {category !== 'all' && <input type="hidden" name="category" value={category} />}
           <div className="flex items-center bg-surface border border-border rounded-lg h-10 px-3 gap-2 flex-1 max-w-sm">
             <Search className="h-4 w-4 text-fg-2 shrink-0" />
-            <input
-              name="q"
-              type="search"
-              defaultValue={q}
-              placeholder="Search by name or slug"
-              className="flex-1 bg-transparent border-0 outline-none text-sm text-fg placeholder:text-fg-3"
-            />
+            <input name="q" type="search" defaultValue={q} placeholder="Search by name or slug"
+              className="flex-1 bg-transparent border-0 outline-none text-sm text-fg placeholder:text-fg-3" />
           </div>
           <button type="submit" className="h-10 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary-hover">
             Search
@@ -108,15 +104,20 @@ export default async function AdminProductsPage({
 
       <div className="bg-surface border border-border-soft rounded-2xl overflow-hidden">
         {rows.length === 0 ? (
-          <div className="p-12 text-center text-sm text-fg-2">No products match.</div>
+          <div className="p-12 text-center text-sm text-fg-2">
+            No products match.{' '}
+            {q || category !== 'all' ? (
+              <Link href="/admin/products" className="text-primary hover:underline">Clear filters</Link>
+            ) : (
+              <Link href="/admin/products/new" className="text-primary hover:underline">Create your first product →</Link>
+            )}
+          </div>
         ) : (
           <ul className="divide-y divide-border-soft">
             {rows.map((p) => (
               <li key={p.id}>
-                <Link
-                  href={`/admin/products/${p.id}/edit`}
-                  className="flex items-center gap-4 px-5 py-3 hover:bg-surface-1 transition-colors"
-                >
+                <Link href={`/admin/products/${p.id}/edit`}
+                  className="flex items-center gap-4 px-5 py-3 hover:bg-surface-1 transition-colors">
                   <div className="relative h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-lg overflow-hidden bg-surface-1">
                     {p.images?.[0]?.url && (
                       <Image src={p.images[0].url} alt={p.name} fill sizes="56px" className="object-cover" />
@@ -133,6 +134,9 @@ export default async function AdminProductsPage({
                       <span className={cn(p.stockQuantity === 0 ? 'text-danger' : p.stockQuantity <= 5 ? 'text-warning' : '')}>
                         {p.stockQuantity} in stock
                       </span>
+                      {p.images && p.images.length > 1 && (
+                        <span className="ml-2 text-fg-3">· {p.images.length} images</span>
+                      )}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-fg-3 shrink-0" />
