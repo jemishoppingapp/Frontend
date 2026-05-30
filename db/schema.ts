@@ -79,6 +79,7 @@ export const users = pgTable(
     avatar: varchar('avatar', { length: 500 }).notNull().default(''),
 
     profileCompleted: boolean('profile_completed').notNull().default(false),
+    isDisabled: boolean('is_disabled').notNull().default(false),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
