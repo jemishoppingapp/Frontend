@@ -272,3 +272,35 @@ html.dark .glass {
 .theme-toggle-btn {
   transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
 }
+/* ============================================================
+ * Admin shell — always light, regardless of buyer-side theme.
+ * Wrap admin pages in <div class="admin-shell"> and the tokens
+ * resolve to the light-mode values inside that scope.
+ * ============================================================ */
+.admin-shell {
+  /* Force light tokens inside, overriding html.dark cascade */
+  --surface: 255 255 255;
+  --surface-1: 250 250 249;
+  --surface-2: 244 244 243;
+  --surface-muted: 247 247 245;
+  --border: 229 229 226;
+  --border-soft: 240 240 237;
+  --border-strong: 212 212 208;
+  --fg: 17 17 17;
+  --fg-1: 64 64 60;
+  --fg-2: 115 115 110;
+  --fg-3: 163 163 156;
+  --fg-inverse: 255 255 255;
+  --primary: 22 163 74;
+  --primary-hover: 21 128 61;
+  --primary-soft: 220 252 231;
+  --primary-fg: 255 255 255;
+  --primary-text: 22 101 52;
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+
+  color-scheme: light;
+  background: rgb(var(--surface-1));
+  color: rgb(var(--fg));
+}

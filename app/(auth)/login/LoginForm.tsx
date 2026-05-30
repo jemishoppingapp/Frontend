@@ -30,10 +30,18 @@ export function LoginForm({ fromPath }: { fromPath?: string }) {
         body: { email, password },
       });
 
-      const next =
-        fromPath && fromPath.startsWith('/') ? fromPath :
-        !data.user.profile_completed ? '/profile/complete' :
-        '/';
+      // Admin? Always go to /admin, ignore fromPath (admin shouldn't
+      // bounce back into checkout)
+      let next: string;
+      if (data.user.role === 'admin') {
+        next = '/admin';
+      } else if (fromPath && fromPath.startsWith('/')) {
+        next = fromPath;
+      } else if (!data.user.profile_completed) {
+        next = '/profile/complete';
+      } else {
+        next = '/';
+      }
       window.location.href = next;
     } catch (err) {
       if (err instanceof ApiError) {
