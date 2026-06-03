@@ -30,11 +30,15 @@ export function LoginForm({ fromPath }: { fromPath?: string }) {
         body: { email, password },
       });
 
-      // Admin? Always go to /admin, ignore fromPath (admin shouldn't
-      // bounce back into checkout)
+      // Role-based redirect:
+      //   admin  -> /admin  (ignores fromPath; admins shouldn't bounce back into buyer flows)
+      //   seller -> /seller (which itself redirects to /sellers/pending if not approved yet)
+      //   buyer  -> fromPath, or /profile/complete if profile incomplete, or /
       let next: string;
       if (data.user.role === 'admin') {
         next = '/admin';
+      } else if (data.user.role === 'seller') {
+        next = '/seller';
       } else if (fromPath && fromPath.startsWith('/')) {
         next = fromPath;
       } else if (!data.user.profile_completed) {
@@ -92,6 +96,10 @@ export function LoginForm({ fromPath }: { fromPath?: string }) {
       <p className="text-sm text-fg-2 text-center mt-6">
         New to JEMI?{' '}
         <Link href="/register" className="text-primary font-medium hover:text-primary-hover">Create an account</Link>
+      </p>
+      <p className="text-xs text-fg-3 text-center mt-3">
+        Selling on JEMI?{' '}
+        <Link href="/sellers/apply" className="text-primary hover:underline">Apply here</Link>
       </p>
     </div>
   );

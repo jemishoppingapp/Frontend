@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { href: '/products', label: 'Shop' },
   { href: '/orders', label: 'My orders' },
   { href: '/profile', label: 'My account' },
+  { href: '/become-a-seller', label: 'Sell on JEMI' },
 ];
 
 const INFO_LINKS = [

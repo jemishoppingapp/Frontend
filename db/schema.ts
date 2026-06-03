@@ -38,7 +38,7 @@ import { sql } from 'drizzle-orm';
 /* Enums                                                                 */
 /* -------------------------------------------------------------------- */
 
-export const userRoleEnum = pgEnum('user_role', ['buyer', 'admin']);
+export const userRoleEnum = pgEnum('user_role', ['buyer', 'admin', 'seller']);
 
 export const orderStatusEnum = pgEnum('order_status', [
   'pending',
@@ -146,6 +146,7 @@ export const products = pgTable(
     features: jsonb('features').$type<string[]>().notNull().default([]),
     color: varchar('color', { length: 50 }).notNull().default(''),
     seller: varchar('seller', { length: 100 }).notNull().default('JEMI Store'),
+    sellerId: uuid('seller_id').references(() => sellers.id, { onDelete: 'set null' }),
     isActive: boolean('is_active').notNull().default(true),
     isFeatured: boolean('is_featured').notNull().default(false),
 
@@ -252,3 +253,58 @@ export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
+// ============================================================
+// Sellers — install-12
+// ============================================================
+export const sellerStatusEnum = pgEnum('seller_status', [
+  'pending',     // application submitted, awaiting admin review
+  'approved',    // active, can list products
+  'suspended',   // temporarily blocked by admin
+  'rejected',    // application denied
+]);
+
+export const sellers = pgTable(
+  'sellers',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+
+    // Business
+    businessName: varchar('business_name', { length: 200 }).notNull(),
+    businessTypeCategory: varchar('business_type_category', { length: 50 }).notNull(),
+    businessTypeNotes: text('business_type_notes').notNull().default(''),
+    businessAddress: text('business_address').notNull(),
+    businessPhone: varchar('business_phone', { length: 20 }).notNull(),
+
+    // Bank (for Paystack subaccount creation in install-15)
+    bankAccountName: varchar('bank_account_name', { length: 200 }).notNull(),
+    bankAccountNumber: varchar('bank_account_number', { length: 20 }).notNull(),
+    bankCode: varchar('bank_code', { length: 10 }).notNull(),
+    bankName: varchar('bank_name', { length: 200 }).notNull(),
+
+    // Paystack subaccount (created on approval — install-15)
+    paystackSubaccountCode: varchar('paystack_subaccount_code', { length: 100 }).notNull().default(''),
+    platformFeePercent: numeric('platform_fee_percent', { precision: 5, scale: 2 }).notNull().default('5.00'),
+
+    // Future KYC (added now as nullable to avoid breaking migration later)
+    kycNin: varchar('kyc_nin', { length: 20 }),
+    kycBvn: varchar('kyc_bvn', { length: 20 }),
+    kycIdDocUrl: text('kyc_id_doc_url'),
+
+    // Status
+    status: sellerStatusEnum('status').notNull().default('pending'),
+    appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    approvedBy: uuid('approved_by').references(() => users.id),
+    rejectionReason: text('rejection_reason').notNull().default(''),
+
+    // Audit
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    statusIdx: index('sellers_status_idx').on(t.status),
+    userIdIdx: index('sellers_user_id_idx').on(t.userId),
+  })
+);
+

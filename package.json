@@ -16,7 +16,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:setup": "tsx --env-file=.env.local scripts/db-setup.ts",
-    "db:restore-search": "dotenv -e .env.local -- tsx scripts/restore-search-vector.ts"
+    "db:restore-search": "dotenv -e .env.local -- tsx scripts/restore-search-vector.ts",
+    "db:cleanup-placeholders": "dotenv-cli -e .env.local -- tsx scripts/cleanup-placeholders.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

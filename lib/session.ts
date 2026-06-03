@@ -13,7 +13,7 @@ export interface CurrentUser {
   email: string;
   name: string;
   phone: string;
-  role: 'buyer' | 'admin';
+  role: 'buyer' | 'admin' | 'seller';
   profile_completed: boolean;
   nickname?: string;
   alt_phone?: string;
