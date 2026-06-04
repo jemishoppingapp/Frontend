@@ -8,7 +8,6 @@ import { SellerApplyForm } from './SellerApplyForm';
 export const metadata: Metadata = { title: 'Sell on JEMI · Apply', robots: { index: false } };
 
 export default async function SellerApplyPage() {
-  // If they're already signed in as a seller, don't show the form
   const user = await getCurrentUser();
   if (user?.role === 'seller') {
     redirect('/sellers/pending');
@@ -16,12 +15,10 @@ export default async function SellerApplyPage() {
   if (user?.role === 'admin') {
     redirect('/admin');
   }
-  // Buyers: we still let them see the form, but we'll bounce them at submit
-  // because they need a fresh email per the architecture decision.
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
-      <header className="border-b border-border-soft">
+    <div className="seller-shell min-h-screen bg-surface-1 flex flex-col">
+      <header className="border-b border-border-soft bg-surface">
         <Container className="h-14 sm:h-16 flex items-center justify-between">
           <Link href="/become-a-seller" className="font-display text-xl font-bold tracking-tight text-primary">
             JEMI <span className="text-fg-3 font-normal text-sm">/ sellers</span>

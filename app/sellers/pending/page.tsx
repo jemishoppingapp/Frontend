@@ -37,7 +37,7 @@ export default async function SellerPendingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
+    <div className="seller-shell min-h-screen bg-surface flex flex-col">
       <header className="border-b border-border-soft">
         <Container className="h-14 sm:h-16 flex items-center justify-between">
           <Link href="/" className="font-display text-xl font-bold tracking-tight text-primary">

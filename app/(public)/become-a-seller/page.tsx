@@ -24,7 +24,7 @@ const PERKS = [
 
 export default function BecomeSellerPage() {
   return (
-    <div>
+    <div className="seller-shell">
       <section className="border-b border-border-soft">
         <Container className="py-16 sm:py-24 lg:py-28">
           <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-6">
