@@ -224,6 +224,10 @@ export const orders = pgTable(
     deliveryDescription: text('delivery_description').notNull().default(''),
     customerNote: text('customer_note').notNull().default(''),
     timeline: jsonb('timeline').$type<OrderTimelineEntry[]>().notNull().default([]),
+    /** install-14: seller delivery marks for dual-confirm. Shape:
+     *    { [sellerId]: { deliveredAt: ISO, deliveredBy: userId } }
+     *  Each seller stamps when they hand over their items at pickup. */
+    sellerDeliveryMarks: jsonb('seller_delivery_marks').notNull().default({}),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
