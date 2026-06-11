@@ -7,6 +7,7 @@ import { db, schema } from '@/db';
 import { formatCurrency, cn } from '@/lib/utils';
 import { DELIVERY_ZONES } from '@/lib/checkout';
 import { AdminOrderStatusActions } from './AdminOrderStatusActions';
+import { AdminRefundButton } from './AdminRefundButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Order Detail', robots: { index: false } };
@@ -203,6 +204,14 @@ export default async function AdminOrderDetailPage({
           </ol>
         </section>
       )}
-    </div>
+    
+      <div className="mt-6">
+        <AdminRefundButton
+          orderNumber={order.orderNumber}
+          canRefund={order.paymentStatus === 'paid' && order.escrowStatus !== 'refunded'}
+          alreadyRefunded={order.escrowStatus === 'refunded'}
+        />
+      </div>
+</div>
   );
 }

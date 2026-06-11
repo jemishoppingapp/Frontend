@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/session';
 import { markOrderPaid } from '@/lib/checkout';
 import { verifyTransaction } from '@/lib/paystack';
 import { ok, fail, failValidation, withErrorHandling } from '@/lib/api';
+import { createHoldEntriesForOrder } from '@/lib/escrow-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,6 +57,12 @@ export async function POST(req: Request) {
     if (!order) {
       return fail('ORDER_NOT_FOUND', "We received your payment but couldn't find the matching order. Contact support with this reference.");
     }
+
+    // INSTALL-15: create escrow hold entries for sellers in this order
+
+    try { await createHoldEntriesForOrder(order.id); } catch (e) { console.error('[escrow-hold]', e); }
+
+    
 
     return ok({
       status: 'paid' as const,

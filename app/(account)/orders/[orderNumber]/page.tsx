@@ -8,6 +8,7 @@ import { requireAuth } from '@/lib/session';
 import { db, schema } from '@/db';
 import { formatCurrency, cn } from '@/lib/utils';
 import { DELIVERY_ZONES } from '@/lib/checkout';
+import { ConfirmReceiptButton } from './ConfirmReceiptButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Order Details', robots: { index: false } };
@@ -42,6 +43,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const total = Number(order.total);
   const isPaid = order.paymentStatus === 'paid';
 
+  // INSTALL-15: dual-confirm state
+  const sellerMarks = (order.sellerDeliveryMarks ?? {}) as Record<string, unknown>;
+  const sellersHaveDelivered = Object.keys(sellerMarks).length > 0;
+  const canConfirm = isPaid && order.status === 'ready_for_pickup' && !order.buyerReceivedAt;
+
   return (
     <Container className="py-6 sm:py-10 max-w-3xl">
       <Link href="/orders" className="inline-flex items-center gap-1 text-sm text-fg-2 hover:text-fg mb-5">
@@ -65,6 +71,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         </p>
       </div>
 
+      {/* Pickup code */}
       {isPaid && order.subOrders.length > 0 && order.subOrders[0].pickupCode && (
         <div className="mb-6 rounded-3xl border border-primary-soft glass p-7 text-center">
           <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 mb-2 font-medium">Pickup code</p>
@@ -77,6 +84,19 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         </div>
       )}
 
+      {/* INSTALL-15: Confirm receipt button (appears when buyer can confirm OR has confirmed) */}
+      {(canConfirm || order.buyerReceivedAt) && (
+        <div className="mb-6">
+          <ConfirmReceiptButton
+            orderNumber={order.orderNumber}
+            canConfirm={canConfirm}
+            buyerReceivedAt={order.buyerReceivedAt ?? null}
+            sellersHaveDelivered={sellersHaveDelivered}
+          />
+        </div>
+      )}
+
+      {/* Items */}
       <section className="bg-surface-1 border border-border-soft rounded-2xl mb-5">
         <div className="px-6 py-4 border-b border-border-soft">
           <h2 className="font-display text-base font-semibold text-fg">Items</h2>
@@ -103,6 +123,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         </ul>
       </section>
 
+      {/* Pickup details */}
       <section className="bg-surface-1 border border-border-soft rounded-2xl p-6 mb-5">
         <h2 className="font-display text-base font-semibold text-fg mb-4">Pickup details</h2>
         <div className="flex items-start gap-3 mb-3">
@@ -119,6 +140,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         )}
       </section>
 
+      {/* Total */}
       <section className="bg-surface-1 border border-border-soft rounded-2xl p-6 mb-5">
         <h2 className="font-display text-base font-semibold text-fg mb-4">Total</h2>
         <dl className="space-y-2 text-sm">
@@ -131,6 +153,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         </dl>
       </section>
 
+      {/* Timeline */}
       {order.timeline.length > 0 && (
         <section className="bg-surface-1 border border-border-soft rounded-2xl p-6">
           <h2 className="font-display text-base font-semibold text-fg mb-4">Timeline</h2>

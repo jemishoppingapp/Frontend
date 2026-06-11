@@ -228,6 +228,10 @@ export const orders = pgTable(
      *    { [sellerId]: { deliveredAt: ISO, deliveredBy: userId } }
      *  Each seller stamps when they hand over their items at pickup. */
     sellerDeliveryMarks: jsonb('seller_delivery_marks').notNull().default({}),
+    /** install-15: buyer confirmed receipt at this time */
+    buyerReceivedAt: timestamp('buyer_received_at', { withTimezone: true }),
+    /** install-15: derived escrow state. held/released/refunded/mixed/awaiting_review */
+    escrowStatus: varchar('escrow_status', { length: 30 }).notNull().default('held'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -312,3 +316,45 @@ export const sellers = pgTable(
   })
 );
 
+
+// ============================================================
+// Escrow — install-15
+// ============================================================
+export const escrowLedgerTypeEnum = pgEnum('escrow_ledger_type', [
+  'hold',          // money received from buyer, owed to seller
+  'release',       // moved from held to seller's available balance
+  'platform_fee',  // 5% taken at release
+  'refund',        // returned to buyer (abandoned or dispute)
+  'payout',        // admin-triggered transfer to seller's bank (install-17)
+]);
+
+export const escrowLedger = pgTable(
+  'escrow_ledger',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    type: escrowLedgerTypeEnum('type').notNull(),
+
+    // Relations — nullable depending on entry type:
+    //   hold/release/platform_fee/payout: orderId + sellerId
+    //   refund: orderId (no seller — money goes back to buyer)
+    orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'restrict' }),
+    sellerId: uuid('seller_id').references(() => sellers.id, { onDelete: 'restrict' }),
+
+    // Amount in naira (numeric, like products.price)
+    amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+
+    // Free-form note / reference (payout reference, refund reason, etc)
+    note: text('note').notNull().default(''),
+
+    // For payouts: external transfer reference (Paystack transfer code, bank ref)
+    externalRef: varchar('external_ref', { length: 200 }).notNull().default(''),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by').references(() => users.id),
+  },
+  (t) => ({
+    orderIdx: index('escrow_ledger_order_idx').on(t.orderId),
+    sellerIdx: index('escrow_ledger_seller_idx').on(t.sellerId),
+    typeIdx: index('escrow_ledger_type_idx').on(t.type),
+  })
+);
