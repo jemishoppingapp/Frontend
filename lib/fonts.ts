@@ -13,14 +13,14 @@ import { Inter, Bricolage_Grotesque } from 'next/font/google';
  */
 export const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-inter',
   display: 'swap',
   weight: ['400', '500', '600', '700'],
 });
 
 export const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
-  variable: '--font-display',
+  variable: '--font-bricolage',
   display: 'swap',
   weight: ['400', '500', '600', '700', '800'],
 });

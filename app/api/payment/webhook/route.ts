@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyWebhookSignature } from '@/lib/paystack';
 import { markOrderPaid } from '@/lib/checkout';
+import { createHoldEntriesForOrder } from '@/lib/escrow-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -37,6 +38,10 @@ export async function POST(req: Request) {
 
   try {
     const { order, alreadyPaid } = await markOrderPaid(event.data.reference);
+    // Escrow holds must exist even when the buyer never hits the verify page.
+    if (order) {
+      try { await createHoldEntriesForOrder(order.id); } catch (e) { console.error('[webhook escrow-hold]', e); }
+    }
     // eslint-disable-next-line no-console
     console.log(
       `[webhook] charge.success ref=${event.data.reference} order=${order?.orderNumber ?? 'NONE'} alreadyPaid=${alreadyPaid}`

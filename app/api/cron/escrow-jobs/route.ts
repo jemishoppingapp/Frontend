@@ -6,26 +6,26 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Hourly cron job that processes:
+ * Hourly escrow jobs. Three passes, in this order:
  *
- * 1. AUTO-RELEASE: Orders where seller marked delivered 7+ days ago
- *    but buyer never confirmed -> release escrow to delivering sellers,
- *    mark order completed.
+ * 1. AUTO-RELEASE (7 days): orders ready_for_pickup where EVERY seller
+ *    holding escrow has marked delivered, but the buyer never confirmed.
+ *    Assumes the buyer collected and forgot to tap. Releases all holds.
  *
- * 2. AUTO-CANCEL: Orders in 'ready_for_pickup' for 7+ days where NO
- *    seller has marked delivered -> refund buyer's card, cancel order.
+ * 2. AUTO-CANCEL (7 days): orders ready_for_pickup where NO seller has
+ *    marked delivered. Nobody showed up — refund the buyer via Paystack
+ *    and cancel.
  *
- * 3. FLAG MIXED: Orders in 'ready_for_pickup' for 14+ days where
- *    SOME (but not all) sellers marked delivered -> set escrow_status
- *    to 'awaiting_review' so admin can resolve manually.
+ * 3. FLAG MIXED (14 days): some sellers marked delivered, some didn't.
+ *    No automatic money movement — set escrow_status = 'awaiting_review'
+ *    so an admin resolves it by hand.
  *
- * Security: BOTH a CRON_SECRET Bearer token AND Vercel's
- * x-vercel-cron header check.
+ * Orders in the mixed state are deliberately NOT touched by pass 1 or 2.
+ *
+ * Auth: accepts either Vercel's own cron header or a Bearer CRON_SECRET.
  */
 export async function GET(req: Request) {
-  // Belt: check Vercel's automatic header (set by Vercel Cron only)
   const vercelCronHeader = req.headers.get('x-vercel-cron');
-  // Suspenders: check our CRON_SECRET (also injected by Vercel from env)
   const authHeader = req.headers.get('authorization');
   const expectedSecret = process.env.CRON_SECRET;
 
@@ -43,16 +43,26 @@ export async function GET(req: Request) {
     errors: [] as string[],
   };
 
-  // ----- 1. AUTO-RELEASE: 7+ days since ready_for_pickup, at least
-  // one seller marked delivered, buyer never confirmed.
+  // ---- Pass 1: AUTO-RELEASE — all hold-sellers marked delivered,
+  // buyer silent for 7+ days.
   try {
     const candidates = await db().execute(sql`
-      SELECT id, order_number FROM orders
-      WHERE status = 'ready_for_pickup'
-        AND payment_status = 'paid'
-        AND buyer_received_at IS NULL
-        AND seller_delivery_marks::text != '{}'
-        AND updated_at < now() - INTERVAL '7 days'
+      SELECT o.id, o.order_number
+      FROM orders o
+      WHERE o.status = 'ready_for_pickup'
+        AND o.payment_status = 'paid'
+        AND o.buyer_received_at IS NULL
+        AND o.escrow_status = 'held'
+        AND o.updated_at < now() - INTERVAL '7 days'
+        AND EXISTS (
+          SELECT 1 FROM escrow_ledger el
+          WHERE el.order_id = o.id AND el.type = 'hold'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM escrow_ledger el
+          WHERE el.order_id = o.id AND el.type = 'hold'
+            AND NOT (o.seller_delivery_marks ? el.seller_id::text)
+        )
       LIMIT 50
     `);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,15 +78,16 @@ export async function GET(req: Request) {
     stats.errors.push(`auto-release query: ${err instanceof Error ? err.message : 'unknown'}`);
   }
 
-  // ----- 2. AUTO-CANCEL + REFUND: 7+ days since ready_for_pickup,
-  // NO seller marked delivered.
+  // ---- Pass 2: AUTO-CANCEL + REFUND — nobody delivered for 7+ days.
   try {
     const candidates = await db().execute(sql`
-      SELECT id, order_number FROM orders
-      WHERE status = 'ready_for_pickup'
-        AND payment_status = 'paid'
-        AND (seller_delivery_marks IS NULL OR seller_delivery_marks::text = '{}')
-        AND updated_at < now() - INTERVAL '7 days'
+      SELECT o.id, o.order_number
+      FROM orders o
+      WHERE o.status = 'ready_for_pickup'
+        AND o.payment_status = 'paid'
+        AND o.escrow_status = 'held'
+        AND (o.seller_delivery_marks IS NULL OR o.seller_delivery_marks = '{}'::jsonb)
+        AND o.updated_at < now() - INTERVAL '7 days'
       LIMIT 50
     `);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,31 +111,26 @@ export async function GET(req: Request) {
     stats.errors.push(`auto-cancel query: ${err instanceof Error ? err.message : 'unknown'}`);
   }
 
-  // ----- 3. FLAG MIXED: 14+ days, some sellers delivered, some not.
-  // The cleanest detection: order has seller_delivery_marks but not all
-  // sellers in the order have entries.
+  // ---- Pass 3: FLAG MIXED — some delivered, some not, 14+ days.
   try {
     const candidates = await db().execute(sql`
-      WITH order_sellers AS (
-        SELECT o.id AS order_id,
-               COUNT(DISTINCT (item->>'productId')::uuid) AS item_count,
-               COUNT(DISTINCT p.seller_id) FILTER (WHERE p.seller_id IS NOT NULL) AS seller_count,
-               jsonb_object_keys(o.seller_delivery_marks) AS marked_seller
-        FROM orders o,
-             jsonb_array_elements(o.sub_orders) AS so,
-             jsonb_array_elements(so->'items') AS item
-        LEFT JOIN products p ON p.id = (item->>'productId')::uuid
-        WHERE o.status = 'ready_for_pickup'
-          AND o.payment_status = 'paid'
-          AND o.buyer_received_at IS NULL
-          AND o.updated_at < now() - INTERVAL '14 days'
-          AND o.escrow_status != 'awaiting_review'
-        GROUP BY o.id, marked_seller
-      )
-      SELECT order_id, seller_count, COUNT(marked_seller)::int AS marked_count
-      FROM order_sellers
-      GROUP BY order_id, seller_count
-      HAVING COUNT(marked_seller) > 0 AND COUNT(marked_seller) < seller_count
+      SELECT o.id
+      FROM orders o
+      WHERE o.status = 'ready_for_pickup'
+        AND o.payment_status = 'paid'
+        AND o.buyer_received_at IS NULL
+        AND o.escrow_status = 'held'
+        AND o.updated_at < now() - INTERVAL '14 days'
+        AND EXISTS (
+          SELECT 1 FROM escrow_ledger el
+          WHERE el.order_id = o.id AND el.type = 'hold'
+            AND (o.seller_delivery_marks ? el.seller_id::text)
+        )
+        AND EXISTS (
+          SELECT 1 FROM escrow_ledger el
+          WHERE el.order_id = o.id AND el.type = 'hold'
+            AND NOT (o.seller_delivery_marks ? el.seller_id::text)
+        )
       LIMIT 50
     `);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -132,11 +138,11 @@ export async function GET(req: Request) {
       try {
         await db().execute(sql`
           UPDATE orders SET escrow_status = 'awaiting_review', updated_at = now()
-          WHERE id = ${row.order_id}
+          WHERE id = ${row.id}
         `);
         stats.flagged++;
       } catch (err) {
-        stats.errors.push(`flag ${row.order_id}: ${err instanceof Error ? err.message : 'unknown'}`);
+        stats.errors.push(`flag ${row.id}: ${err instanceof Error ? err.message : 'unknown'}`);
       }
     }
   } catch (err) {

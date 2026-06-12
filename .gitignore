@@ -56,6 +56,7 @@ yarn.lock
 install-*.sh
 fix-*.sh
 
-# Install/fix scripts (kept local)
-install-*.sh
-fix-*.sh
+# Project dumps + audit files (local only, never commit)
+jemi-dump-*.txt
+jemi-state-dump.txt
+dump-jemi-*.sh

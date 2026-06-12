@@ -92,10 +92,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${inter.variable} ${bricolage.variable}`}
       suppressHydrationWarning
-      style={{
-        ['--font-sans-loaded' as string]: 'var(--font-sans)',
-        ['--font-display-loaded' as string]: 'var(--font-display)',
-      }}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FOWT_SCRIPT }} />
