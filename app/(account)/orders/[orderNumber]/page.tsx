@@ -73,7 +73,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
 
       {/* Pickup code */}
       {isPaid && order.subOrders.length > 0 && order.subOrders[0].pickupCode && (
-        <div className="mb-6 rounded-3xl border border-primary-soft glass p-7 text-center">
+        <div className="mb-6 rounded-3xl border border-border-soft bg-surface-1 p-7 text-center">
           <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 mb-2 font-medium">Pickup code</p>
           <div className="font-mono font-bold tracking-[0.3em] text-primary text-4xl sm:text-5xl mb-3 leading-none">
             {order.subOrders[0].pickupCode}

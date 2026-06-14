@@ -98,7 +98,7 @@ export function VerifyClient({ reference }: { reference: string }) {
         </p>
       </div>
 
-      <div className="glass rounded-3xl p-8 sm:p-10 mb-6 text-center border border-primary-soft">
+      <div className="bg-surface-1 border border-border-soft rounded-3xl p-8 sm:p-10 mb-6 text-center border border-primary-soft">
         <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 mb-3 font-medium">Your pickup code</p>
         <div className="font-mono font-bold tracking-[0.35em] text-primary text-4xl sm:text-6xl mb-5 leading-none">
           {result.pickupCode}

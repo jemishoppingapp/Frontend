@@ -60,3 +60,6 @@ fix-*.sh
 jemi-dump-*.txt
 jemi-state-dump.txt
 dump-jemi-*.sh
+
+# Shell scripts are local tooling, never part of the app
+*.sh

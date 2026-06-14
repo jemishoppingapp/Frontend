@@ -50,7 +50,7 @@ export default async function SellerAuthedLayout({
         businessName={seller.businessName}
         pendingOrdersCount={pendingOrdersCount}
       />
-      <main className="flex-1 min-w-0 page-fade">{children}</main>
+      <main className="flex-1 min-w-0">{children}</main>
     </div>
   );
 }
