@@ -1,3 +1,9 @@
+import '@fontsource/nunito/400.css';
+import '@fontsource/nunito/500.css';
+import '@fontsource/nunito/600.css';
+import '@fontsource/nunito/700.css';
+import '@fontsource/nunito/800.css';
+import './font.css';
 import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'sonner';
 import { NetworkStatus } from '@/components/NetworkStatus';

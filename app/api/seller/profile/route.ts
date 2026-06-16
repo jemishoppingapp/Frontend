@@ -15,7 +15,12 @@ const businessSchema = z.object({
   businessPhone: z.string().trim().min(7).max(20),
 });
 
-const patchSchema = z.discriminatedUnion('kind', [businessSchema]);
+const cadenceSchema = z.object({
+  kind: z.literal('cadence'),
+  payoutCadence: z.enum(['weekly', 'monthly']),
+});
+
+const patchSchema = z.discriminatedUnion('kind', [businessSchema, cadenceSchema]);
 
 export async function PATCH(req: Request) {
   return withErrorHandling(async () => {
@@ -40,6 +45,28 @@ export async function PATCH(req: Request) {
       }).where(eq(schema.sellers.id, seller.id));
       return ok({ saved: true });
     }
+
+    if (parsed.kind === 'cadence') {
+
+
+      await db().update(schema.sellers).set({
+
+
+        payoutCadence: parsed.payoutCadence,
+
+
+        updatedAt: new Date(),
+
+
+      }).where(eq(schema.sellers.id, seller.id));
+
+
+      return ok({ saved: true });
+
+
+    }
+
+
 
     return fail('VALIDATION_ERROR', 'Unknown patch kind.');
   });

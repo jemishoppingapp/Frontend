@@ -16,6 +16,7 @@ export interface SellerProfile {
   bankCode: string;
   bankName: string;
   platformFeePercent: string;
+  payoutCadence: 'weekly' | 'monthly';
   status: 'pending' | 'approved' | 'suspended' | 'rejected';
 }
 
@@ -75,6 +76,7 @@ export async function requireSeller(): Promise<{
       bankCode: sellerRow.bankCode,
       bankName: sellerRow.bankName,
       platformFeePercent: sellerRow.platformFeePercent,
+      payoutCadence: sellerRow.payoutCadence,
       status: sellerRow.status,
     },
   };

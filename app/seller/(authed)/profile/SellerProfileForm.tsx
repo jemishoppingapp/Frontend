@@ -20,6 +20,7 @@ interface SellerData {
   bankAccountName: string;
   bankAccountNumber: string;
   platformFeePercent: string;
+  payoutCadence: 'weekly' | 'monthly';
 }
 
 export function SellerProfileForm({ user, seller }: { user: UserData; seller: SellerData }) {
@@ -29,6 +30,24 @@ export function SellerProfileForm({ user, seller }: { user: UserData; seller: Se
   const [businessAddress, setBusinessAddress] = useState(seller.businessAddress);
   const [businessPhone, setBusinessPhone] = useState(seller.businessPhone);
   const [saving, setSaving] = useState(false);
+  const [cadence, setCadence] = useState<'weekly' | 'monthly'>(seller.payoutCadence);
+  const [savingCadence, setSavingCadence] = useState(false);
+
+  async function saveCadence(next: 'weekly' | 'monthly') {
+    setCadence(next);
+    setSavingCadence(true);
+    try {
+      await apiFetch('/api/seller/profile', {
+        method: 'PATCH',
+        body: { kind: 'cadence', payoutCadence: next },
+      });
+      toast.success('Payout schedule updated');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not update');
+    } finally {
+      setSavingCadence(false);
+    }
+  }
 
   // Password change
   const [currentPassword, setCurrentPassword] = useState('');
@@ -142,6 +161,76 @@ export function SellerProfileForm({ user, seller }: { user: UserData; seller: Se
           </Button>
         </div>
       </form>
+
+      {/* Payout schedule */}
+
+
+      <section className="bg-surface border border-border-soft rounded-2xl p-6">
+
+
+        <h2 className="font-display text-base font-semibold text-fg mb-2">Payout schedule</h2>
+
+
+        <p className="text-xs text-fg-2 mb-4">How often you'd like to be paid your available balance.</p>
+
+
+        <div className="flex gap-2">
+
+
+          {(['weekly', 'monthly'] as const).map((opt) => (
+
+
+            <button
+
+
+              key={opt}
+
+
+              type="button"
+
+
+              onClick={() => saveCadence(opt)}
+
+
+              disabled={savingCadence}
+
+
+              className={
+
+
+                'flex-1 h-11 rounded-lg border text-sm font-medium capitalize transition-colors ' +
+
+
+                (cadence === opt
+
+
+                  ? 'border-primary bg-primary-soft text-primary-text'
+
+
+                  : 'border-border bg-surface text-fg-2 hover:bg-surface-1')
+
+
+              }
+
+
+            >
+
+
+              {opt}
+
+
+            </button>
+
+
+          ))}
+
+
+        </div>
+
+
+      </section>
+
+
 
       {/* Bank — locked */}
       <section className="bg-surface border border-border-soft rounded-2xl p-6">

@@ -264,6 +264,8 @@ export type NewOrder = typeof orders.$inferInsert;
 // ============================================================
 // Sellers — install-12
 // ============================================================
+export const payoutCadenceEnum = pgEnum('payout_cadence', ['weekly', 'monthly']);
+
 export const sellerStatusEnum = pgEnum('seller_status', [
   'pending',     // application submitted, awaiting admin review
   'approved',    // active, can list products
@@ -293,6 +295,8 @@ export const sellers = pgTable(
     // Paystack subaccount (created on approval — install-15)
     paystackSubaccountCode: varchar('paystack_subaccount_code', { length: 100 }).notNull().default(''),
     platformFeePercent: numeric('platform_fee_percent', { precision: 5, scale: 2 }).notNull().default('5.00'),
+    /** install-17: how often this seller wants payouts */
+    payoutCadence: payoutCadenceEnum('payout_cadence').notNull().default('weekly'),
 
     // Future KYC (added now as nullable to avoid breaking migration later)
     kycNin: varchar('kyc_nin', { length: 20 }),
@@ -356,5 +360,44 @@ export const escrowLedger = pgTable(
     orderIdx: index('escrow_ledger_order_idx').on(t.orderId),
     sellerIdx: index('escrow_ledger_seller_idx').on(t.sellerId),
     typeIdx: index('escrow_ledger_type_idx').on(t.type),
+  })
+);
+
+// ============================================================
+// Payouts — install-17
+// ============================================================
+
+export const payoutStatusEnum = pgEnum('payout_status', [
+  'pending',    // created, money not confirmed sent yet (manual mode)
+  'processing', // Paystack transfer initiated, awaiting completion
+  'completed',  // money confirmed sent
+  'failed',     // transfer failed
+]);
+
+export const payoutMethodEnum = pgEnum('payout_method', ['manual', 'paystack']);
+
+export const payouts = pgTable(
+  'payouts',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    sellerId: uuid('seller_id').notNull().references(() => sellers.id, { onDelete: 'restrict' }),
+
+    amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+    method: payoutMethodEnum('method').notNull(),
+    status: payoutStatusEnum('status').notNull().default('pending'),
+
+    // Paystack transfer code / bank reference
+    transferRef: varchar('transfer_ref', { length: 200 }).notNull().default(''),
+    // Snapshot of bank details at payout time (in case seller changes them later)
+    bankSnapshot: jsonb('bank_snapshot').notNull().default({}),
+
+    note: text('note').notNull().default(''),
+    createdBy: uuid('created_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => ({
+    sellerIdx: index('payouts_seller_idx').on(t.sellerId),
+    statusIdx: index('payouts_status_idx').on(t.status),
   })
 );

@@ -1,0 +1,5 @@
+/* Nunito is registered as the "Nunito" family by @fontsource/nunito
+ * (imported in layout.tsx). Bind our CSS variable to it. */
+.font-nunito-var {
+  --font-nunito: 'Nunito';
+}

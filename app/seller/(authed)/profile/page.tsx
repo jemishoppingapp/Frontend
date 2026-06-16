@@ -27,6 +27,7 @@ export default async function SellerProfilePage() {
           bankAccountName: seller.bankAccountName,
           bankAccountNumber: seller.bankAccountNumber,
           platformFeePercent: seller.platformFeePercent,
+          payoutCadence: seller.payoutCadence,
         }}
       />
     </div>

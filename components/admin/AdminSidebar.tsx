@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
   LayoutDashboard, Package, ShoppingBag, Users, Briefcase,
-  LogOut, Menu, X, UserCog,
+  LogOut, Menu, X, UserCog, Banknote,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ export function AdminSidebar({
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/admin', badge: 0 },
     { href: '/admin/orders', label: 'Orders', icon: ShoppingBag, match: (p: string) => p.startsWith('/admin/orders'), badge: pendingOrdersCount },
     { href: '/admin/sellers', label: 'Sellers', icon: Briefcase, match: (p: string) => p.startsWith('/admin/sellers'), badge: pendingSellersCount },
+    { href: '/admin/payouts', label: 'Payouts', icon: Banknote, match: (p: string) => p.startsWith('/admin/payouts'), badge: 0 },
     { href: '/admin/products', label: 'Products', icon: Package, match: (p: string) => p.startsWith('/admin/products'), badge: 0 },
     { href: '/admin/users', label: 'Users', icon: Users, match: (p: string) => p.startsWith('/admin/users'), badge: 0 },
     { href: '/admin/profile', label: 'My Profile', icon: UserCog, match: (p: string) => p.startsWith('/admin/profile'), badge: 0 },

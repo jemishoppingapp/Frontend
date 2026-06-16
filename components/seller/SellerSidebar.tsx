@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
   LayoutDashboard, Package, ShoppingBag, UserCog,
-  LogOut, Menu, X,
+  LogOut, Menu, X, Banknote,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ export function SellerSidebar({
     { href: '/seller', label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/seller', badge: 0 },
     { href: '/seller/products', label: 'My Products', icon: Package, match: (p: string) => p.startsWith('/seller/products'), badge: 0 },
     { href: '/seller/orders', label: 'Orders', icon: ShoppingBag, match: (p: string) => p.startsWith('/seller/orders'), badge: pendingOrdersCount },
+    { href: '/seller/payouts', label: 'Payouts', icon: Banknote, match: (p: string) => p.startsWith('/seller/payouts'), badge: 0 },
     { href: '/seller/profile', label: 'Profile', icon: UserCog, match: (p: string) => p.startsWith('/seller/profile'), badge: 0 },
   ];
 
