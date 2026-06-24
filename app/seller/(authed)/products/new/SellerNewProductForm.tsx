@@ -145,6 +145,23 @@ export function SellerNewProductForm({ sellerBusinessName, declaredCategory }: P
             <Label htmlFor="price" className="text-fg-1">Price (₦) <span className="text-danger">*</span></Label>
             <Input id="price" type="number" inputMode="numeric" step="0.01" min="0" value={price}
               onChange={(e) => setPrice(e.target.value)} required className="mt-1.5 bg-surface" placeholder="0" />
+            {/* POD_BREAKDOWN: show seller what they receive after the 5% fee */}
+            {price && !Number.isNaN(parseFloat(price)) && parseFloat(price) > 0 && (
+              <div className="mt-2 rounded-lg border border-primary/30 bg-primary-soft/30 px-3 py-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-fg-2">Buyers pay</span>
+                  <span className="font-semibold text-fg">₦{parseFloat(price).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs mt-1">
+                  <span className="text-fg-2">JEMI fee (5%)</span>
+                  <span className="text-fg-2">−₦{(parseFloat(price) * 0.05).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm mt-1.5 pt-1.5 border-t border-primary/20">
+                  <span className="font-medium text-fg">You receive</span>
+                  <span className="font-bold text-primary-text">₦{(parseFloat(price) * 0.95).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <Label htmlFor="originalPrice" className="text-fg-1">Original price (₦, optional)</Label>

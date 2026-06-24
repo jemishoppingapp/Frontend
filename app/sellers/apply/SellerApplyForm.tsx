@@ -244,6 +244,15 @@ export function SellerApplyForm() {
         </ol>
       </div>
 
+      <div className="rounded-xl border border-border bg-surface-1 p-4 mb-4">
+        <p className="text-sm font-semibold text-fg mb-1">How payment works</p>
+        <p className="text-xs text-fg-2 leading-relaxed">
+          You set the price buyers pay. On each sale, JEMI keeps 5% as the platform
+          fee and you receive 95%. For example, on a ₦1,000 item you receive ₦950.
+          You&apos;ll see your exact payout on every product as you list it.
+        </p>
+      </div>
+
       <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting || loadingBanks}>
         {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" />Submitting...</>) : 'Submit application'}
       </Button>

@@ -8,6 +8,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { DELIVERY_ZONES } from '@/lib/checkout';
 import { AdminOrderStatusActions } from './AdminOrderStatusActions';
 import { AdminRefundButton } from './AdminRefundButton';
+import { AdminPodDelivery } from './AdminPodDelivery';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Order Detail', robots: { index: false } };
@@ -87,8 +88,18 @@ export default async function AdminOrderDetailPage({
         paymentStatus={order.paymentStatus}
       />
 
+      {/* POD: agent delivery + collection */}
+      <AdminPodDelivery
+        orderNumber={order.orderNumber}
+        total={total}
+        paymentMethod={order.paymentMethod}
+        paymentStatus={order.paymentStatus}
+        podCollectedAmount={order.podCollectedAmount != null ? Number(order.podCollectedAmount) : null}
+        podCollectedMethod={order.podCollectedMethod}
+      />
+
       {/* Pickup code */}
-      {isPaid && order.subOrders.length > 0 && order.subOrders[0].pickupCode && (
+      {(isPaid || order.paymentMethod === 'pod') && order.subOrders.length > 0 && order.subOrders[0].pickupCode && (
         <div className="mt-6 rounded-2xl border-2 border-primary-soft bg-primary-soft/30 p-6 text-center">
           <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 mb-2 font-medium">Pickup code</p>
           <div className="font-mono font-bold tracking-[0.3em] text-primary text-3xl sm:text-4xl mb-2 leading-none">

@@ -54,6 +54,8 @@ export const paymentStatusEnum = pgEnum('payment_status', [
   'paid',
   'failed',
   'refunded',
+  'pay_on_delivery',
+  'collected',
 ]);
 
 /* -------------------------------------------------------------------- */
@@ -136,6 +138,8 @@ export const products = pgTable(
     slug: varchar('slug', { length: 255 }).notNull(),
     description: text('description').notNull().default(''),
     price: numeric('price', { precision: 10, scale: 2 }).notNull(),
+    /** pod-1: JEMI margin %. Seller gets (100 - margin)% of list price. Default 5, overridable. */
+    marginPercent: numeric('margin_percent', { precision: 5, scale: 2 }).notNull().default('5'),
     originalPrice: numeric('original_price', { precision: 10, scale: 2 }),
     images: jsonb('images').$type<ProductImage[]>().notNull().default([]),
     category: varchar('category', { length: 100 }).notNull(),
@@ -220,6 +224,10 @@ export const orders = pgTable(
     paymentStatus: paymentStatusEnum('payment_status').notNull().default('pending'),
     paymentMethod: varchar('payment_method', { length: 50 }).notNull().default('paystack'),
     paystackReference: varchar('paystack_reference', { length: 100 }).notNull().default(''),
+    /** pod-1: what JEMI's rep collected at the gate */
+    podCollectedAmount: numeric('pod_collected_amount', { precision: 10, scale: 2 }),
+    podCollectedMethod: varchar('pod_collected_method', { length: 20 }).notNull().default(''),
+    podCollectedAt: timestamp('pod_collected_at', { withTimezone: true }),
     deliveryZone: varchar('delivery_zone', { length: 100 }).notNull(),
     deliveryDescription: text('delivery_description').notNull().default(''),
     customerNote: text('customer_note').notNull().default(''),

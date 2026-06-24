@@ -143,6 +143,19 @@ export function SellerProductEditForm({
             <Label htmlFor="price" className="text-fg-1">Price (₦)</Label>
             <Input id="price" type="number" inputMode="numeric" step="0.01" min="0" value={price}
               onChange={(e) => setPrice(e.target.value)} required className="mt-1.5 bg-surface" />
+            {/* POD_BREAKDOWN */}
+            {price && !Number.isNaN(parseFloat(price)) && parseFloat(price) > 0 && (
+              <div className="mt-2 rounded-lg border border-primary/30 bg-primary-soft/30 px-3 py-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-fg-2">Buyers pay</span>
+                  <span className="font-semibold text-fg">₦{parseFloat(price).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm mt-1.5 pt-1.5 border-t border-primary/20">
+                  <span className="font-medium text-fg">You receive</span>
+                  <span className="font-bold text-primary-text">₦{(parseFloat(price) * 0.95).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <Label htmlFor="originalPrice" className="text-fg-1">Original price (₦, optional)</Label>

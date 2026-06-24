@@ -17,6 +17,7 @@ const patchSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(5000).optional(),
   price: z.number().min(0).optional(),
+  marginPercent: z.number().min(0).max(100).optional(),
   originalPrice: z.number().min(0).nullable().optional(),
   category: z.enum(['fashion', 'electronics', 'food', 'accessories']).optional(),
   stockQuantity: z.number().int().min(0).optional(),

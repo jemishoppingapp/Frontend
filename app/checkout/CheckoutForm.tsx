@@ -17,11 +17,20 @@ const DELIVERY_ZONES = [
   { slug: 'iyana-iba-gate', name: 'Iyana Iba Gate', description: 'Iyana Iba bus stop' },
 ];
 
+// Which payment mode the storefront runs in. POD = pay the rep at the gate.
+const PAYMENT_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === 'paystack' ? 'paystack' : 'pod';
+
 interface InitResp {
   authorization_url: string;
   reference: string;
   orderId: string;
   orderNumber: string;
+}
+
+interface PodResp {
+  orderId: string;
+  orderNumber: string;
+  mode: string;
 }
 
 export function CheckoutForm({ user }: { user: { id: string; email: string; name: string } }) {
@@ -41,7 +50,7 @@ export function CheckoutForm({ user }: { user: { id: string; email: string; name
         <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-surface mb-4">
           <ShoppingBag className="h-5 w-5 text-fg-2" />
         </div>
-        <p className="text-sm text-fg-2 mb-4">Your cart is empty — nothing to checkout.</p>
+        <p className="text-sm text-fg-2 mb-4">Your cart is empty, nothing to checkout.</p>
         <Button asChild variant="default" size="tap"><Link href="/products">Start shopping</Link></Button>
       </div>
     );
@@ -54,15 +63,28 @@ export function CheckoutForm({ user }: { user: { id: string; email: string; name
       return;
     }
     setSubmitting(true);
+
+    const payload = {
+      items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      deliveryZone: zone,
+      deliveryDescription: description.trim(),
+      customerNote: note.trim(),
+    };
+
     try {
+      if (PAYMENT_MODE === 'pod') {
+        const data = await apiFetch<PodResp>('/api/payment/pod-order', {
+          method: 'POST',
+          body: payload,
+        });
+        window.location.href = `/orders/${data.orderNumber}`;
+        return;
+      }
+
+      // Paystack mode
       const data = await apiFetch<InitResp>('/api/payment/initialize', {
         method: 'POST',
-        body: {
-          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-          deliveryZone: zone,
-          deliveryDescription: description.trim(),
-          customerNote: note.trim(),
-        },
+        body: payload,
       });
       window.location.href = data.authorization_url;
     } catch (err) {
@@ -77,6 +99,8 @@ export function CheckoutForm({ user }: { user: { id: string; email: string; name
       setSubmitting(false);
     }
   }
+
+  const isPod = PAYMENT_MODE === 'pod';
 
   return (
     <form onSubmit={handleSubmit} className="grid lg:grid-cols-[1fr_380px] gap-10">
@@ -93,7 +117,7 @@ export function CheckoutForm({ user }: { user: { id: string; email: string; name
               <Input id="email" value={user.email} disabled className="mt-1.5 bg-surface" />
             </div>
           </div>
-          <p className="text-[11px] text-fg-3 mt-3">We'll send your order confirmation here.</p>
+          <p className="text-[11px] text-fg-3 mt-3">We&apos;ll send your order confirmation here.</p>
         </section>
 
         <section className="bg-surface-1 border border-border-soft rounded-2xl p-6">
@@ -154,14 +178,32 @@ export function CheckoutForm({ user }: { user: { id: string; email: string; name
           <div className="flex justify-between"><dt className="text-fg-2">Subtotal</dt><dd className="text-fg">{formatCurrency(subtotal)}</dd></div>
           <div className="flex justify-between"><dt className="text-fg-2">Delivery</dt><dd className="text-fg">{formatCurrency(DELIVERY_FEE)}</dd></div>
           <div className="flex justify-between pt-4 border-t border-border-soft">
-            <dt className="font-display text-base font-semibold text-fg">Total</dt>
+            <dt className="font-display text-base font-semibold text-fg">{isPod ? 'Pay at pickup' : 'Total'}</dt>
             <dd className="font-display text-base font-semibold text-fg">{formatCurrency(total)}</dd>
           </div>
         </dl>
+
+        {isPod && (
+          <div className="mb-4 rounded-xl border border-primary/30 bg-primary-soft/30 p-3">
+            <p className="text-xs text-fg-1 leading-relaxed">
+              Pay <span className="font-semibold">{formatCurrency(total)}</span> in cash or
+              transfer when you collect at the gate. No payment needed now.
+            </p>
+          </div>
+        )}
+
         <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting}>
-          {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" />Connecting to Paystack…</>) : `Pay ${formatCurrency(total)}`}
+          {submitting ? (
+            <><Loader2 className="h-4 w-4 animate-spin" />{isPod ? 'Placing order…' : 'Connecting to Paystack…'}</>
+          ) : (
+            isPod ? 'Place order — pay on delivery' : `Pay ${formatCurrency(total)}`
+          )}
         </Button>
-        <p className="text-[11px] text-fg-3 mt-3 text-center">Secure payment via Paystack. You'll get a pickup code on confirmation.</p>
+        <p className="text-[11px] text-fg-3 mt-3 text-center">
+          {isPod
+            ? "You'll get a pickup code. Pay our rep at the gate when you collect."
+            : "Secure payment via Paystack. You'll get a pickup code on confirmation."}
+        </p>
       </aside>
     </form>
   );

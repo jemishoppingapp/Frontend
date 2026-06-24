@@ -19,6 +19,7 @@ const createSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and dashes.'),
   description: z.string().trim().max(5000).default(''),
   price: z.number().min(0),
+  marginPercent: z.number().min(0).max(100).optional(),
   originalPrice: z.number().min(0).nullable().optional(),
   category: z.enum(['fashion', 'electronics', 'food', 'accessories']),
   stockQuantity: z.number().int().min(0),
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
       slug: parsed.slug,
       description: parsed.description,
       price: String(parsed.price),
+      marginPercent: String(parsed.marginPercent ?? 5),
       originalPrice: parsed.originalPrice ? String(parsed.originalPrice) : null,
       category: parsed.category,
       seller: seller.businessName, // legacy text field — populated for compat
