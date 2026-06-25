@@ -1,0 +1,1856 @@
+============================================================
+  JEMI AUTH AUDIT
+  Generated: Thu Jun 25 21:14:46 WCAST 2026
+============================================================
+
+########## FILE: middleware.ts (55 lines) ##########
+/**
+ * Edge-runtime middleware. Verifies the auth cookie on protected routes
+ * and redirects to /login otherwise.
+ *
+ * Runs on every request matched by the `matcher` config below — keep
+ * the matcher tight to avoid running on static assets, _next, etc.
+ *
+ * Note: this is a coarse gate. Individual pages/route handlers still
+ * call requireAuth() for fine-grained checks (e.g. requireAdmin).
+ * Middleware existing just stops unauthenticated users from even seeing
+ * the page-loading flash before the redirect.
+ */
+import { NextResponse, type NextRequest } from 'next/server';
+import { verifyToken } from '@/lib/auth';
+import { AUTH_COOKIE_NAME } from '@/lib/cookies';
+
+export async function middleware(req: NextRequest) {
+  const token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const { pathname } = req.nextUrl;
+
+  // Verify token if present. Invalid tokens get treated the same as no token.
+  const payload = token ? await verifyToken(token) : null;
+
+  // --- Admin gate (excludes /admin/login itself, so we don't loop) ---
+  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+    if (!payload || payload.role !== 'admin') {
+      const url = new URL('/admin/login', req.url);
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // --- Buyer-protected routes ---
+  const protectedBuyerPaths = ['/checkout', '/orders', '/profile'];
+  const isProtected = protectedBuyerPaths.some(
+    (p) => pathname === p || pathname.startsWith(p + '/')
+  );
+
+  if (isProtected && !payload) {
+    const url = new URL('/login', req.url);
+    url.searchParams.set('from', pathname + req.nextUrl.search);
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  // Match only the routes we care about. Avoid running on _next assets,
+  // public files, favicon, etc.
+  matcher: [
+    '/admin/:path*',
+    '/checkout/:path*',
+    '/orders/:path*',
+    '/profile/:path*',
+  ],
+};
+########## END: middleware.ts ##########
+
+########## FILE: lib/auth.ts (56 lines) ##########
+/**
+ * JWT sign/verify using jose.
+ *
+ * Why jose, not jsonwebtoken: jose is built on Web Crypto APIs and runs
+ * in the Edge runtime (middleware.ts). jsonwebtoken depends on Node's
+ * `crypto` module and would force middleware into the Node runtime,
+ * which is slower and has higher cold-start cost.
+ *
+ * Token shape:
+ *   { sub: userId, email, role }
+ * Signed HS256, 7-day expiry. No refresh tokens — when the cookie
+ * expires the user logs in again.
+ */
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
+
+export interface JemiTokenPayload extends JWTPayload {
+  sub: string;        // user._id as string
+  email: string;
+  role: 'buyer' | 'admin';
+}
+
+// Resolve the secret lazily so missing env doesn't crash the build
+// (Next.js evaluates module top-level during `next build` even for
+// routes that will never run statically).
+function getSecret(): Uint8Array {
+  const s = process.env.JWT_SECRET;
+  if (!s) throw new Error('JWT_SECRET is not defined in environment variables.');
+  return new TextEncoder().encode(s);
+}
+
+export async function signToken(payload: Omit<JemiTokenPayload, 'iat' | 'exp'>): Promise<string> {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(getSecret());
+}
+
+export async function verifyToken(token: string): Promise<JemiTokenPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret(), {
+      algorithms: ['HS256'],
+    });
+    // Narrow & validate the shape we care about.
+    if (
+      typeof payload.sub === 'string' &&
+      typeof payload.email === 'string' &&
+      (payload.role === 'buyer' || payload.role === 'admin')
+    ) {
+      return payload as JemiTokenPayload;
+    }
+    return null;
+  } catch {
+    // expired, malformed, bad signature, etc.
+    return null;
+  }
+}
+########## END: lib/auth.ts ##########
+
+########## FILE: lib/cookies.ts (38 lines) ##########
+/**
+ * Auth cookie helpers. Server-side only (uses next/headers).
+ *
+ * Cookie name: jm_token (different from Tenderville's tv_token to avoid
+ * collisions if both apps are ever hosted on the same domain).
+ */
+import { cookies } from 'next/headers';
+
+const COOKIE_NAME = 'jm_token';
+const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7;
+
+export async function setAuthCookie(token: string): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SEVEN_DAYS_SECONDS,
+  });
+}
+
+export async function clearAuthCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+}
+
+export async function getAuthCookie(): Promise<string | undefined> {
+  const cookieStore = await cookies();
+  return cookieStore.get(COOKIE_NAME)?.value;
+}
+
+export const AUTH_COOKIE_NAME = COOKIE_NAME;
+########## END: lib/cookies.ts ##########
+
+########## FILE: lib/session.ts (83 lines) ##########
+/**
+ * Session helpers for Server Components and Route Handlers.
+ * Postgres + Drizzle version.
+ */
+import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+import { getAuthCookie } from '@/lib/cookies';
+import { verifyToken } from '@/lib/auth';
+import { db, schema } from '@/db';
+
+export interface CurrentUser {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  role: 'buyer' | 'admin' | 'seller';
+  profile_completed: boolean;
+  nickname?: string;
+  alt_phone?: string;
+  address?: string;
+  department?: string;
+  level?: string;
+  avatar?: string;
+}
+
+/**
+ * Returns the current user or null if not logged in / invalid token /
+ * deleted user. Does not redirect.
+ */
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const token = await getAuthCookie();
+  if (!token) return null;
+
+  const payload = await verifyToken(token);
+  if (!payload) return null;
+
+  const rows = await db()
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.id, payload.sub))
+    .limit(1);
+
+  const user = rows[0];
+  if (!user) return null;
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    role: user.role,
+    profile_completed: user.profileCompleted,
+    nickname: user.nickname,
+    alt_phone: user.altPhone,
+    address: user.address,
+    department: user.department,
+    level: user.level,
+    avatar: user.avatar,
+  };
+}
+
+/**
+ * Server-component / server-action guard. Redirects to /login with a
+ * `from` param if not authenticated.
+ */
+export async function requireAuth(fromPath?: string): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) {
+    const qs = fromPath ? `?from=${encodeURIComponent(fromPath)}` : '';
+    redirect(`/login${qs}`);
+  }
+  return user;
+}
+
+/**
+ * Server-component / server-action guard for admin-only pages.
+ */
+export async function requireAdmin(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== 'admin') {
+    redirect('/admin/login');
+  }
+  return user;
+}
+########## END: lib/session.ts ##########
+
+########## FILE: lib/seller-session.ts (82 lines) ##########
+import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+import { db, schema } from '@/db';
+import { getCurrentUser, type CurrentUser } from '@/lib/session';
+
+export interface SellerProfile {
+  id: string;
+  userId: string;
+  businessName: string;
+  businessTypeCategory: string;
+  businessTypeNotes: string;
+  businessAddress: string;
+  businessPhone: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankCode: string;
+  bankName: string;
+  platformFeePercent: string;
+  payoutCadence: 'weekly' | 'monthly';
+  status: 'pending' | 'approved' | 'suspended' | 'rejected';
+}
+
+/**
+ * Loads the current user + their seller row.
+ *
+ * - Not signed in -> redirect /login
+ * - Wrong role -> redirect /
+ * - status != 'approved' -> redirect /sellers/pending
+ *
+ * Throws nothing; redirects on failure.
+ */
+export async function requireSeller(): Promise<{
+  user: CurrentUser;
+  seller: SellerProfile;
+}> {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/login');
+  }
+  if (user.role === 'admin') {
+    redirect('/admin');
+  }
+  if (user.role !== 'seller') {
+    redirect('/');
+  }
+
+  const rows = await db()
+    .select()
+    .from(schema.sellers)
+    .where(eq(schema.sellers.userId, user.id))
+    .limit(1);
+
+  const sellerRow = rows[0];
+  if (!sellerRow) {
+    // Edge case: user has seller role but no sellers row.
+    // Shouldn't happen, but redirect to apply page so they can recover.
+    redirect('/sellers/apply');
+  }
+
+  if (sellerRow.status !== 'approved') {
+    redirect('/sellers/pending');
+  }
+
+  return {
+    user,
+    seller: {
+      id: sellerRow.id,
+      userId: sellerRow.userId,
+      businessName: sellerRow.businessName,
+      businessTypeCategory: sellerRow.businessTypeCategory,
+      businessTypeNotes: sellerRow.businessTypeNotes,
+      businessAddress: sellerRow.businessAddress,
+      businessPhone: sellerRow.businessPhone,
+      bankAccountName: sellerRow.bankAccountName,
+      bankAccountNumber: sellerRow.bankAccountNumber,
+      bankCode: sellerRow.bankCode,
+      bankName: sellerRow.bankName,
+      platformFeePercent: sellerRow.platformFeePercent,
+      payoutCadence: sellerRow.payoutCadence,
+      status: sellerRow.status,
+    },
+  };
+}
+########## END: lib/seller-session.ts ##########
+
+########## FILE: lib/validators.ts (108 lines) ##########
+/**
+ * Shared zod schemas used across auth + profile API routes and forms.
+ * One source of truth so client validation matches server validation.
+ */
+import { z } from 'zod';
+import { normalizeNigerianPhone } from '@/lib/utils';
+
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email('Please enter a valid email');
+
+export const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(72, 'Password is too long')  // bcrypt's max input
+  .refine(
+    (p) => /[a-z]/i.test(p) && /\d/.test(p),
+    'Password must contain a letter and a number'
+  );
+
+export const nameSchema = z
+  .string()
+  .trim()
+  .min(2, 'Please enter your name')
+  .max(100, 'Name is too long');
+
+/**
+ * Nigerian phone schema. Accepts the four common input formats and
+ * normalizes to +234... at parse time. Rejects anything else.
+ */
+export const nigerianPhoneSchema = z
+  .string()
+  .trim()
+  .transform((val, ctx) => {
+    const normalized = normalizeNigerianPhone(val);
+    if (!normalized) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid Nigerian phone number',
+      });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
+export const registerSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  password: passwordSchema,
+});
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, 'Please enter your password'),
+});
+
+export const profileCompleteSchema = z.object({
+  phone: nigerianPhoneSchema,
+  alt_phone: z
+    .string()
+    .trim()
+    .optional()
+    .transform((val) => {
+      if (!val) return '';
+      const normalized = normalizeNigerianPhone(val);
+      return normalized ?? '';
+    }),
+  address: z.string().trim().min(5, 'Please enter your address').max(500),
+  department: z.string().trim().min(2, 'Please enter your department').max(100),
+  level: z.enum([
+    '100 Level',
+    '200 Level',
+    '300 Level',
+    '400 Level',
+    '500 Level',
+    'Postgraduate',
+    'Staff',
+    'Non-student',
+  ]),
+});
+
+export const profileUpdateSchema = z.object({
+  name: nameSchema.optional(),
+  nickname: z.string().trim().max(100).optional(),
+  alt_phone: z
+    .string()
+    .trim()
+    .optional()
+    .transform((val) => {
+      if (!val) return '';
+      const normalized = normalizeNigerianPhone(val);
+      return normalized ?? '';
+    }),
+  address: z.string().trim().max(500).optional(),
+  department: z.string().trim().max(100).optional(),
+});
+
+export const changePasswordSchema = z
+  .object({
+    current_password: z.string().min(1, 'Please enter your current password'),
+    new_password: passwordSchema,
+    confirm_password: z.string().min(1, 'Please confirm your new password'),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: "New passwords don't match",
+    path: ['confirm_password'],
+  });
+########## END: lib/validators.ts ##########
+
+########## FILE: app/api/auth/login/route.ts (53 lines) ##########
+import bcrypt from 'bcryptjs';
+import { eq } from 'drizzle-orm';
+import { z } from 'zod';
+import { db, schema } from '@/db';
+import { signToken } from '@/lib/auth';
+import { setAuthCookie } from '@/lib/cookies';
+import { loginSchema } from '@/lib/validators';
+import { ok, fail, failValidation, withErrorHandling } from '@/lib/api';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+export async function POST(req: Request) {
+  return withErrorHandling(async () => {
+    let parsed: z.infer<typeof loginSchema>;
+    try {
+      const body = await req.json();
+      parsed = loginSchema.parse(body);
+    } catch (err) {
+      if (err instanceof z.ZodError) return failValidation(err);
+      return fail('VALIDATION_ERROR', 'Please check your inputs and try again.');
+    }
+
+    const rows = await db()
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, parsed.email))
+      .limit(1);
+    const user = rows[0];
+
+    // Timing-safe: run bcrypt even when user doesn't exist
+    const PASSWORD_DUMMY = '$2a$12$abcdefghijklmnopqrstuv';
+    const passwordOk = user
+      ? await bcrypt.compare(parsed.password, user.password)
+      : (await bcrypt.compare(parsed.password, PASSWORD_DUMMY).catch(() => false), false);
+
+    if (!user || !passwordOk) {
+      return fail('INVALID_CREDENTIALS', 'Wrong email or password.');
+    }
+
+    const token = await signToken({ sub: user.id, email: user.email, role: user.role });
+    await setAuthCookie(token);
+
+    return ok({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        profile_completed: user.profileCompleted,
+      },
+    });
+  });
+}
+########## END: app/api/auth/login/route.ts ##########
+
+########## FILE: app/api/auth/register/route.ts (69 lines) ##########
+import bcrypt from 'bcryptjs';
+import { eq } from 'drizzle-orm';
+import { z } from 'zod';
+import { db, schema } from '@/db';
+import { signToken } from '@/lib/auth';
+import { setAuthCookie } from '@/lib/cookies';
+import { registerSchema } from '@/lib/validators';
+import { ok, fail, failValidation, withErrorHandling } from '@/lib/api';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+const BCRYPT_ROUNDS = 12;
+
+export async function POST(req: Request) {
+  return withErrorHandling(async () => {
+    let parsed: z.infer<typeof registerSchema>;
+    try {
+      const body = await req.json();
+      parsed = registerSchema.parse(body);
+    } catch (err) {
+      if (err instanceof z.ZodError) return failValidation(err);
+      return fail('VALIDATION_ERROR', 'Please check your inputs and try again.');
+    }
+
+    const existing = await db()
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.email, parsed.email))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return fail('EMAIL_TAKEN', 'An account with that email already exists. Try signing in instead.', 'email');
+    }
+
+    const hash = await bcrypt.hash(parsed.password, BCRYPT_ROUNDS);
+
+    await db().insert(schema.users).values({
+      email: parsed.email,
+      password: hash,
+      name: parsed.name,
+      role: 'buyer',
+      profileCompleted: false,
+    });
+
+    const rows = await db()
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, parsed.email))
+      .limit(1);
+
+    const user = rows[0];
+    if (!user) {
+      return fail('SERVER_ERROR', 'We saved your account but could not sign you in. Please try logging in.');
+    }
+
+    const token = await signToken({ sub: user.id, email: user.email, role: user.role });
+    await setAuthCookie(token);
+
+    return ok({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        profile_completed: user.profileCompleted,
+      },
+    });
+  });
+}
+########## END: app/api/auth/register/route.ts ##########
+
+########## FILE: app/api/auth/logout/route.ts (11 lines) ##########
+import { clearAuthCookie } from '@/lib/cookies';
+import { ok, withErrorHandling } from '@/lib/api';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+export async function POST() {
+  return withErrorHandling(async () => {
+    await clearAuthCookie();
+    return ok({ signedOut: true });
+  });
+}
+########## END: app/api/auth/logout/route.ts ##########
+
+########## FILE: app/(auth)/login/page.tsx (15 lines) ##########
+import type { Metadata } from 'next';
+import { LoginForm } from './LoginForm';
+
+export const metadata: Metadata = {
+  title: 'Sign in',
+  robots: { index: false },
+};
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const sp = await searchParams;
+  return <LoginForm fromPath={sp.from} />;
+}
+########## END: app/(auth)/login/page.tsx ##########
+
+########## FILE: app/(auth)/login/LoginForm.tsx (105 lines) ##########
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { apiFetch, ApiError } from '@/lib/api-client';
+
+interface LoginResp {
+  user: { id: string; email: string; name: string; role: string; profile_completed: boolean };
+}
+
+export function LoginForm({ fromPath }: { fromPath?: string }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setFieldError(null);
+
+    try {
+      const data = await apiFetch<LoginResp>('/api/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      });
+
+      // Role-based redirect:
+      //   admin  -> /admin  (ignores fromPath; admins shouldn't bounce back into buyer flows)
+      //   seller -> /seller (which itself redirects to /sellers/pending if not approved yet)
+      //   buyer  -> fromPath, or /profile/complete if profile incomplete, or /
+      let next: string;
+      if (data.user.role === 'admin') {
+        next = '/admin';
+      } else if (data.user.role === 'seller') {
+        next = '/seller';
+      } else if (fromPath && fromPath.startsWith('/')) {
+        next = fromPath;
+      } else if (!data.user.profile_completed) {
+        next = '/profile/complete';
+      } else {
+        next = '/';
+      }
+      window.location.href = next;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.field) {
+          setFieldError({ field: err.field, message: err.message });
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="bg-surface-1 border border-border-soft rounded-2xl p-7 sm:p-9">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">Welcome back</p>
+      <h1 className="font-display text-3xl font-semibold text-fg mb-2">Sign in.</h1>
+      <p className="text-sm text-fg-2 mb-7">Use your JEMI email and password.</p>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="email" className="text-fg-1">Email</Label>
+          <Input id="email" type="email" autoComplete="email" inputMode="email"
+            value={email} onChange={(e) => setEmail(e.target.value)} required
+            className="mt-1.5" placeholder="you@example.com" />
+          {fieldError?.field === 'email' && (
+            <p className="text-xs text-danger mt-1">{fieldError.message}</p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="password" className="text-fg-1">Password</Label>
+          <Input id="password" type="password" autoComplete="current-password"
+            value={password} onChange={(e) => setPassword(e.target.value)} required
+            className="mt-1.5" placeholder="••••••••" />
+          {fieldError?.field === 'password' && (
+            <p className="text-xs text-danger mt-1">{fieldError.message}</p>
+          )}
+        </div>
+
+        <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting}>
+          {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" />Signing in…</>) : 'Sign in'}
+        </Button>
+      </form>
+
+      <p className="text-sm text-fg-2 text-center mt-6">
+        New to JEMI?{' '}
+        <Link href="/register" className="text-primary font-medium hover:text-primary-hover">Create an account</Link>
+      </p>
+      <p className="text-xs text-fg-3 text-center mt-3">
+        Selling on JEMI?{' '}
+        <Link href="/sellers/apply" className="text-primary hover:underline">Apply here</Link>
+      </p>
+    </div>
+  );
+}
+########## END: app/(auth)/login/LoginForm.tsx ##########
+
+########## FILE: app/(auth)/register/page.tsx (10 lines) ##########
+import type { Metadata } from 'next';
+import { RegisterForm } from './RegisterForm';
+
+export const metadata: Metadata = {
+  title: 'Create your account',
+  robots: { index: false },
+};
+
+export default function RegisterPage() {
+  return <RegisterForm />;
+}
+########## END: app/(auth)/register/page.tsx ##########
+
+########## FILE: app/(auth)/register/RegisterForm.tsx (97 lines) ##########
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { apiFetch, ApiError } from '@/lib/api-client';
+
+interface RegisterResp {
+  user: { id: string; email: string; name: string; role: string; profile_completed: boolean };
+}
+
+export function RegisterForm() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setFieldError(null);
+
+    try {
+      await apiFetch<RegisterResp>('/api/auth/register', {
+        method: 'POST',
+        body: { name, email, password },
+      });
+      window.location.href = '/profile/complete';
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.field) {
+          setFieldError({ field: err.field, message: err.message });
+        } else {
+          toast.error(err.message);
+        }
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="bg-surface-1 border border-border-soft rounded-2xl p-7 sm:p-9">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">Start shopping</p>
+      <h1 className="font-display text-3xl font-semibold text-fg mb-2">Create account.</h1>
+      <p className="text-sm text-fg-2 mb-7">Quality products at student-friendly prices.</p>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="name" className="text-fg-1">Full name</Label>
+          <Input id="name" type="text" autoComplete="name" value={name}
+            onChange={(e) => setName(e.target.value)} required minLength={2}
+            className="mt-1.5" placeholder="Your full name" />
+          {fieldError?.field === 'name' && (<p className="text-xs text-danger mt-1">{fieldError.message}</p>)}
+        </div>
+        <div>
+          <Label htmlFor="email" className="text-fg-1">Email</Label>
+          <Input id="email" type="email" autoComplete="email" inputMode="email"
+            value={email} onChange={(e) => setEmail(e.target.value)} required
+            className="mt-1.5" placeholder="you@example.com" />
+          {fieldError?.field === 'email' && (<p className="text-xs text-danger mt-1">{fieldError.message}</p>)}
+        </div>
+        <div>
+          <Label htmlFor="password" className="text-fg-1">Password</Label>
+          <Input id="password" type="password" autoComplete="new-password"
+            value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
+            className="mt-1.5" placeholder="At least 8 characters" />
+          {fieldError?.field === 'password' ? (
+            <p className="text-xs text-danger mt-1">{fieldError.message}</p>
+          ) : (
+            <p className="text-[11px] text-fg-3 mt-1.5">8+ characters with a letter and a number.</p>
+          )}
+        </div>
+
+        <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting}>
+          {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" />Creating account…</>) : 'Create account'}
+        </Button>
+
+        <p className="text-[11px] text-fg-3 text-center">
+          By creating an account you agree to our{' '}
+          <Link href="/terms" className="text-primary hover:underline">Terms</Link> and{' '}
+          <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+        </p>
+      </form>
+
+      <p className="text-sm text-fg-2 text-center mt-6">
+        Already have an account?{' '}
+        <Link href="/login" className="text-primary font-medium hover:text-primary-hover">Sign in</Link>
+      </p>
+    </div>
+  );
+}
+########## END: app/(auth)/register/RegisterForm.tsx ##########
+
+########## MISSING: app/login/page.tsx ##########
+
+########## MISSING: app/login/LoginForm.tsx ##########
+
+########## FILE: app/seller/(authed)/layout.tsx (55 lines) ##########
+import { eq, sql } from 'drizzle-orm';
+import { db, schema } from '@/db';
+import { requireSeller } from '@/lib/seller-session';
+import { SellerSidebar } from '@/components/seller/SellerSidebar';
+
+export const dynamic = 'force-dynamic';
+
+export default async function SellerAuthedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { user, seller } = await requireSeller();
+
+  // Pending orders count for sidebar badge: orders containing this seller's
+  // products in a status the seller still needs to act on.
+  let pendingOrdersCount = 0;
+  try {
+    // Find product IDs owned by this seller
+    const sellerProducts = await db()
+      .select({ id: schema.products.id })
+      .from(schema.products)
+      .where(eq(schema.products.sellerId, seller.id));
+    const productIds = sellerProducts.map((p) => p.id);
+
+    if (productIds.length > 0) {
+      const countRows = await db().execute(sql`
+        SELECT COUNT(DISTINCT id)::int AS n FROM orders
+        WHERE status IN ('confirmed', 'processing', 'ready_for_pickup')
+          AND payment_status = 'paid'
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(sub_orders) AS so,
+                 jsonb_array_elements(so->'items') AS item
+            WHERE (item->>'productId')::uuid = ANY (${productIds}::uuid[])
+          )
+      `);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pendingOrdersCount = (countRows.rows[0] as any)?.n ?? 0;
+    }
+  } catch {
+    // If query fails, layout still renders without badge.
+  }
+
+  return (
+    <div className="seller-shell min-h-screen flex flex-col lg:flex-row bg-surface-1">
+      <SellerSidebar
+        sellerName={user.name}
+        sellerEmail={user.email}
+        businessName={seller.businessName}
+        pendingOrdersCount={pendingOrdersCount}
+      />
+      <main className="flex-1 min-w-0">{children}</main>
+    </div>
+  );
+}
+########## END: app/seller/(authed)/layout.tsx ##########
+
+########## FILE: app/seller/(authed)/page.tsx (271 lines) ##########
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { eq, sql } from 'drizzle-orm';
+import { Package, ShoppingBag, Plus, ArrowRight, Wallet, Clock, CheckCircle2 } from 'lucide-react';
+import { db, schema } from '@/db';
+import { requireSeller } from '@/lib/seller-session';
+import { getSellerEscrowSummary } from '@/lib/escrow-server';
+import { formatCurrency, cn } from '@/lib/utils';
+
+export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Seller Dashboard', robots: { index: false } };
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'Awaiting payment',
+  confirmed: 'Confirmed',
+  processing: 'Processing',
+  ready_for_pickup: 'Ready for pickup',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+const STATUS_COLOR: Record<string, string> = {
+  pending: 'text-warning bg-warning/10',
+  confirmed: 'text-primary bg-primary/10',
+  processing: 'text-primary bg-primary/10',
+  ready_for_pickup: 'text-primary bg-primary/10',
+  completed: 'text-fg-2 bg-surface-2',
+  cancelled: 'text-danger bg-danger/10',
+};
+
+const LEDGER_LABEL: Record<string, string> = {
+  hold: 'Held (pending pickup)',
+  release: 'Released to you',
+  platform_fee: 'Platform fee',
+  refund: 'Refunded',
+  payout: 'Paid out',
+};
+
+const LEDGER_COLOR: Record<string, string> = {
+  hold: 'text-warning',
+  release: 'text-success',
+  platform_fee: 'text-fg-3',
+  refund: 'text-danger',
+  payout: 'text-primary',
+};
+
+export default async function SellerDashboardPage() {
+  const { seller } = await requireSeller();
+
+  // Active product count + total
+  const productRows = await db()
+    .select({
+      total: sql<number>`count(*)::int`,
+      active: sql<number>`count(*) filter (where is_active = true)::int`,
+    })
+    .from(schema.products)
+    .where(eq(schema.products.sellerId, seller.id));
+  const totalProducts = productRows[0]?.total ?? 0;
+  const activeProducts = productRows[0]?.active ?? 0;
+
+  // Earnings summary
+  const earnings = await getSellerEscrowSummary(seller.id);
+
+  // Recent orders (top 8)
+  const sellerProductRows = await db()
+    .select({ id: schema.products.id })
+    .from(schema.products)
+    .where(eq(schema.products.sellerId, seller.id));
+  const productIds = sellerProductRows.map((p) => p.id);
+
+  let recentOrders: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    createdAt: Date;
+    sellerSubtotal: number;
+    sellerItemCount: number;
+  }> = [];
+  let totalOrderCount = 0;
+
+  if (productIds.length > 0) {
+    const orderRows = await db().execute(sql`
+      SELECT
+        o.id, o.order_number AS "orderNumber", o.status,
+        o.created_at AS "createdAt",
+        (
+          SELECT COALESCE(SUM((item->>'price')::numeric * (item->>'quantity')::int), 0)
+          FROM jsonb_array_elements(o.sub_orders) AS so,
+               jsonb_array_elements(so->'items') AS item
+          WHERE (item->>'productId')::uuid = ANY (${productIds}::uuid[])
+        )::numeric AS "sellerSubtotal",
+        (
+          SELECT COALESCE(SUM((item->>'quantity')::int), 0)
+          FROM jsonb_array_elements(o.sub_orders) AS so,
+               jsonb_array_elements(so->'items') AS item
+          WHERE (item->>'productId')::uuid = ANY (${productIds}::uuid[])
+        )::int AS "sellerItemCount"
+      FROM orders o
+      WHERE o.payment_status = 'paid'
+        AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(o.sub_orders) AS so,
+                       jsonb_array_elements(so->'items') AS item
+          WHERE (item->>'productId')::uuid = ANY (${productIds}::uuid[])
+        )
+      ORDER BY o.created_at DESC LIMIT 8
+    `);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recentOrders = orderRows.rows.map((r: any) => ({
+      id: r.id,
+      orderNumber: r.orderNumber,
+      status: r.status,
+      createdAt: new Date(r.createdAt),
+      sellerSubtotal: Number(r.sellerSubtotal),
+      sellerItemCount: Number(r.sellerItemCount),
+    }));
+
+    const totalRows = await db().execute(sql`
+      SELECT COUNT(DISTINCT o.id)::int AS n FROM orders o
+      WHERE o.payment_status = 'paid'
+        AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(o.sub_orders) AS so,
+                       jsonb_array_elements(so->'items') AS item
+          WHERE (item->>'productId')::uuid = ANY (${productIds}::uuid[])
+        )
+    `);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    totalOrderCount = (totalRows.rows[0] as any)?.n ?? 0;
+  }
+
+  return (
+    <div className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
+      <h1 className="font-display text-2xl sm:text-3xl font-semibold text-fg mb-1">
+        {seller.businessName}
+      </h1>
+      <p className="text-sm text-fg-2 mb-7">Your shop at a glance.</p>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 mb-6">
+        <div className="bg-surface border border-border-soft rounded-2xl p-4 lg:p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase tracking-[0.15em] text-fg-2 font-medium">Active products</span>
+            <Package className="h-4 w-4 text-fg-3" />
+          </div>
+          <p className="font-display text-2xl lg:text-3xl font-semibold text-fg leading-none">{activeProducts}</p>
+          {totalProducts > activeProducts && (
+            <p className="text-[11px] text-fg-3 mt-1">{totalProducts - activeProducts} hidden</p>
+          )}
+        </div>
+
+        <div className="bg-surface border border-border-soft rounded-2xl p-4 lg:p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase tracking-[0.15em] text-fg-2 font-medium">Orders</span>
+            <ShoppingBag className="h-4 w-4 text-fg-3" />
+          </div>
+          <p className="font-display text-2xl lg:text-3xl font-semibold text-fg leading-none">{totalOrderCount}</p>
+          <p className="text-[11px] text-fg-3 mt-1">total paid</p>
+        </div>
+
+        <Link href="/seller/products/new"
+          className="bg-primary border border-primary rounded-2xl p-4 lg:p-5 text-primary-foreground hover:bg-primary-hover transition-colors flex flex-col justify-center">
+          <Plus className="h-5 w-5 mb-2" />
+          <p className="font-display text-base sm:text-lg font-semibold">Add product</p>
+          <p className="text-[11px] opacity-80 mt-0.5">List something new</p>
+        </Link>
+      </div>
+
+      {/* Earnings widget — real now */}
+      <section className="bg-surface border border-border-soft rounded-2xl p-5 mb-8">
+        <h2 className="font-display text-base font-semibold text-fg mb-4 inline-flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-fg-2" /> Earnings
+        </h2>
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.15em] text-fg-2 font-medium mb-1 inline-flex items-center gap-1">
+              <Clock className="h-3 w-3" /> Pending
+            </p>
+            <p className="font-display text-lg sm:text-xl font-semibold text-warning leading-none">
+              {formatCurrency(earnings.pendingBalance)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.15em] text-fg-2 font-medium mb-1 inline-flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Available
+            </p>
+            <p className="font-display text-lg sm:text-xl font-semibold text-success leading-none">
+              {formatCurrency(earnings.availableBalance)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.15em] text-fg-2 font-medium mb-1">Paid out</p>
+            <p className="font-display text-lg sm:text-xl font-semibold text-fg leading-none">
+              {formatCurrency(earnings.paidOut)}
+            </p>
+          </div>
+        </div>
+        <div className="border-t border-border-soft pt-4">
+          <p className="text-xs text-fg-2 mb-3">Recent activity</p>
+          {earnings.recentEntries.length === 0 ? (
+            <p className="text-xs text-fg-3">No transactions yet. Pending balance grows as orders are placed; available balance grows when orders complete.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {earnings.recentEntries.map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between text-xs">
+                  <div className="flex-1 min-w-0">
+                    <span className={cn('font-medium', LEDGER_COLOR[entry.type])}>
+                      {LEDGER_LABEL[entry.type] ?? entry.type}
+                    </span>
+                    {entry.orderNumber && (
+                      <Link href={`/seller/orders/${entry.orderNumber}`} className="ml-2 text-fg-3 font-mono hover:text-primary">
+                        {entry.orderNumber}
+                      </Link>
+                    )}
+                  </div>
+                  <span className={cn('font-medium', LEDGER_COLOR[entry.type])}>
+                    {entry.type === 'refund' || entry.type === 'payout' ? '−' : ''}
+                    {formatCurrency(entry.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <p className="text-[10px] text-fg-3 mt-3 leading-relaxed">
+          Available balance is paid out manually by JEMI weekly or monthly per your preference. Payout history coming in next update.
+        </p>
+      </section>
+
+      {/* Recent orders */}
+      <section className="bg-surface border border-border-soft rounded-2xl overflow-hidden">
+        <header className="flex items-center justify-between px-5 py-4 border-b border-border-soft">
+          <h2 className="font-display text-base font-semibold text-fg">Recent orders</h2>
+          <Link href="/seller/orders" className="text-xs font-medium text-primary hover:text-primary-hover inline-flex items-center gap-1">
+            View all <ArrowRight className="h-3 w-3" />
+          </Link>
+        </header>
+        {recentOrders.length === 0 ? (
+          <div className="p-10 text-center text-sm text-fg-2">
+            No orders yet. {activeProducts === 0 ? (
+              <Link href="/seller/products/new" className="text-primary hover:underline">List your first product →</Link>
+            ) : 'Once buyers purchase your items, they will appear here.'}
+          </div>
+        ) : (
+          <ul className="divide-y divide-border-soft">
+            {recentOrders.map((order) => (
+              <li key={order.id}>
+                <Link href={`/seller/orders/${order.orderNumber}`}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-surface-1 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="font-mono text-[11px] text-fg-3">{order.orderNumber}</span>
+                      <span className={cn(
+                        'inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full',
+                        STATUS_COLOR[order.status] || 'text-fg-2 bg-surface-2'
+                      )}>
+                        {STATUS_LABEL[order.status] || order.status}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-fg">
+                      {order.sellerItemCount} item{order.sellerItemCount === 1 ? '' : 's'} · {formatCurrency(order.sellerSubtotal)}
+                    </p>
+                  </div>
+                  <span className="text-xs text-fg-2 whitespace-nowrap">
+                    {order.createdAt.toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+########## END: app/seller/(authed)/page.tsx ##########
+
+########## FILE: app/sellers/pending/page.tsx (117 lines) ##########
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { Clock, Mail, LogOut } from 'lucide-react';
+import { eq } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/session';
+import { db, schema } from '@/db';
+import { Container } from '@/components/Container';
+
+export const metadata: Metadata = { title: 'Application pending', robots: { index: false } };
+export const dynamic = 'force-dynamic';
+
+export default async function SellerPendingPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect('/sellers/apply');
+  if (user.role !== 'seller') {
+    if (user.role === 'admin') redirect('/admin');
+    else redirect('/');
+  }
+
+  // Look up status
+  const rows = await db()
+    .select({
+      status: schema.sellers.status,
+      businessName: schema.sellers.businessName,
+      appliedAt: schema.sellers.appliedAt,
+      rejectionReason: schema.sellers.rejectionReason,
+    })
+    .from(schema.sellers)
+    .where(eq(schema.sellers.userId, user.id))
+    .limit(1);
+  const sellerRow = rows[0];
+
+  // If already approved, send them to /seller dashboard
+  if (sellerRow?.status === 'approved') {
+    redirect('/seller');
+  }
+
+  return (
+    <div className="seller-shell min-h-screen bg-surface flex flex-col">
+      <header className="border-b border-border-soft">
+        <Container className="h-14 sm:h-16 flex items-center justify-between">
+          <Link href="/" className="font-display text-xl font-bold tracking-tight text-primary">
+            JEMI <span className="text-fg-3 font-normal text-sm">/ sellers</span>
+          </Link>
+          <form action="/api/auth/logout" method="post">
+            <button type="submit" className="inline-flex items-center gap-1 text-sm text-fg-2 hover:text-fg">
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
+          </form>
+        </Container>
+      </header>
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="max-w-md w-full">
+          {sellerRow?.status === 'pending' && (
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-warning/10 mb-5">
+                <Clock className="h-7 w-7 text-warning" />
+              </div>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-warning font-medium mb-3">Under review</p>
+              <h1 className="font-display text-3xl font-semibold text-fg mb-2">Thanks for applying.</h1>
+              <p className="text-sm text-fg-2 mb-7">
+                Your application for <span className="font-medium text-fg">{sellerRow.businessName}</span> is being reviewed.
+                We typically respond within 48 hours.
+              </p>
+              <div className="rounded-2xl border border-border-soft bg-surface-1 p-5 text-left">
+                <div className="flex items-start gap-3">
+                  <Mail className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-fg mb-1">We'll email you</p>
+                    <p className="text-xs text-fg-2 leading-relaxed">
+                      Check <span className="font-mono text-fg">{user.email}</span> for an update.
+                      Once approved, sign in at <Link href="/login" className="text-primary hover:underline">/login</Link> to start listing products.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-fg-3 mt-6">
+                Submitted {new Date(sellerRow.appliedAt).toLocaleString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </p>
+            </div>
+          )}
+
+          {sellerRow?.status === 'rejected' && (
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-danger/10 mb-5">
+                <Clock className="h-7 w-7 text-danger" />
+              </div>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-danger font-medium mb-3">Application not approved</p>
+              <h1 className="font-display text-3xl font-semibold text-fg mb-2">Sorry, we can't approve this application.</h1>
+              {sellerRow.rejectionReason && (
+                <p className="text-sm text-fg-2 mb-4">
+                  Reason: <span className="text-fg">{sellerRow.rejectionReason}</span>
+                </p>
+              )}
+              <p className="text-sm text-fg-2 mb-7">
+                If you think this is a mistake, please reach out to support.
+              </p>
+            </div>
+          )}
+
+          {sellerRow?.status === 'suspended' && (
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-danger/10 mb-5">
+                <Clock className="h-7 w-7 text-danger" />
+              </div>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-danger font-medium mb-3">Account suspended</p>
+              <h1 className="font-display text-3xl font-semibold text-fg mb-2">Your seller account is suspended.</h1>
+              <p className="text-sm text-fg-2 mb-7">
+                Please contact JEMI support to resolve this.
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+########## END: app/sellers/pending/page.tsx ##########
+
+########## FILE: app/sellers/apply/page.tsx (42 lines) ##########
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/session';
+import { Container } from '@/components/Container';
+import { SellerApplyForm } from './SellerApplyForm';
+
+export const metadata: Metadata = { title: 'Sell on JEMI · Apply', robots: { index: false } };
+
+export default async function SellerApplyPage() {
+  const user = await getCurrentUser();
+  if (user?.role === 'seller') {
+    redirect('/sellers/pending');
+  }
+  if (user?.role === 'admin') {
+    redirect('/admin');
+  }
+
+  return (
+    <div className="seller-shell min-h-screen bg-surface-1 flex flex-col">
+      <header className="border-b border-border-soft bg-surface">
+        <Container className="h-14 sm:h-16 flex items-center justify-between">
+          <Link href="/become-a-seller" className="font-display text-xl font-bold tracking-tight text-primary">
+            JEMI <span className="text-fg-3 font-normal text-sm">/ sellers</span>
+          </Link>
+          <Link href="/" className="text-sm text-fg-2 hover:text-fg">Back to JEMI</Link>
+        </Container>
+      </header>
+      <main className="flex-1 py-8 sm:py-12">
+        <Container className="max-w-2xl">
+          <div className="mb-8">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">Seller application</p>
+            <h1 className="font-display text-3xl sm:text-4xl font-semibold text-fg leading-tight">Apply to sell on JEMI.</h1>
+            <p className="text-sm text-fg-2 mt-2">
+              Takes ~5 minutes. We review applications within 48 hours and email you to let you know when you can start listing.
+            </p>
+          </div>
+          <SellerApplyForm />
+        </Container>
+      </main>
+    </div>
+  );
+}
+########## END: app/sellers/apply/page.tsx ##########
+
+########## FILE: app/admin/(authed)/layout.tsx (45 lines) ##########
+import { redirect } from 'next/navigation';
+import { eq, sql } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/session';
+import { db, schema } from '@/db';
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
+
+export const dynamic = 'force-dynamic';
+
+export default async function AdminAuthedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== 'admin') {
+    redirect('/admin/login');
+  }
+
+  // Fetch pending counts for sidebar badges (single small query per page)
+  let pendingSellersCount = 0;
+  let pendingOrdersCount = 0;
+  try {
+    const [sellersCount, ordersCount] = await Promise.all([
+      db().select({ count: sql<number>`count(*)::int` })
+        .from(schema.sellers).where(eq(schema.sellers.status, 'pending')),
+      db().select({ count: sql<number>`count(*)::int` })
+        .from(schema.orders).where(eq(schema.orders.status, 'pending')),
+    ]);
+    pendingSellersCount = sellersCount[0]?.count ?? 0;
+    pendingOrdersCount = ordersCount[0]?.count ?? 0;
+  } catch {
+    // If DB hiccups, just don't show badges. Layout still renders.
+  }
+
+  return (
+    <div className="admin-shell min-h-screen flex flex-col lg:flex-row bg-surface-1">
+      <AdminSidebar
+        adminName={user.name}
+        adminEmail={user.email}
+        pendingSellersCount={pendingSellersCount}
+        pendingOrdersCount={pendingOrdersCount}
+      />
+      <main className="flex-1 min-w-0">{children}</main>
+    </div>
+  );
+}
+########## END: app/admin/(authed)/layout.tsx ##########
+
+########## FILE: app/admin/login/page.tsx (33 lines) ##########
+import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { getCurrentUser } from '@/lib/session';
+import { AdminLoginForm } from './AdminLoginForm';
+
+export const metadata: Metadata = {
+  title: 'Admin Sign in',
+  robots: { index: false },
+};
+
+export default async function AdminLoginPage() {
+  const user = await getCurrentUser();
+  if (user?.role === 'admin') {
+    redirect('/admin');
+  }
+
+  return (
+    <div className="admin-shell min-h-screen flex flex-col">
+      <header className="border-b border-border-soft bg-surface">
+        <div className="max-w-7xl mx-auto px-4 h-14 sm:h-16 flex items-center">
+          <Link href="/" className="font-display text-xl font-bold tracking-tight text-primary">
+            JEMI <span className="text-fg-3 font-normal text-sm">/ admin</span>
+          </Link>
+        </div>
+      </header>
+      <main className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md">
+          <AdminLoginForm />
+        </div>
+      </main>
+    </div>
+  );
+}
+########## END: app/admin/login/page.tsx ##########
+
+########## FILE: app/admin/login/AdminLoginForm.tsx (86 lines) ##########
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { Loader2, ShieldCheck } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { apiFetch, ApiError } from '@/lib/api-client';
+
+interface LoginResp {
+  user: { id: string; email: string; name: string; role: string; profile_completed: boolean };
+}
+
+export function AdminLoginForm() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const data = await apiFetch<LoginResp>('/api/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      });
+
+      // If this account isn't an admin, sign them out and refuse
+      if (data.user.role !== 'admin') {
+        // Best-effort logout to clear the cookie
+        try {
+          await apiFetch('/api/auth/logout', { method: 'POST' });
+        } catch {}
+        toast.error('This area is for staff only.');
+        setSubmitting(false);
+        return;
+      }
+
+      window.location.href = '/admin';
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border-soft rounded-2xl p-7 sm:p-9 shadow-sm">
+      <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-primary font-medium mb-3">
+        <ShieldCheck className="h-3 w-3" />
+        Staff access
+      </div>
+      <h1 className="font-display text-3xl font-semibold text-fg mb-2">Admin sign in.</h1>
+      <p className="text-sm text-fg-2 mb-7">Restricted to authorized JEMI staff only.</p>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="email" className="text-fg-1">Email</Label>
+          <Input id="email" type="email" autoComplete="email"
+            value={email} onChange={(e) => setEmail(e.target.value)} required
+            className="mt-1.5 bg-surface" placeholder="admin@jemi.com" />
+        </div>
+
+        <div>
+          <Label htmlFor="password" className="text-fg-1">Password</Label>
+          <Input id="password" type="password" autoComplete="current-password"
+            value={password} onChange={(e) => setPassword(e.target.value)} required
+            className="mt-1.5 bg-surface" placeholder="••••••••" />
+        </div>
+
+        <Button type="submit" variant="default" size="tap" className="w-full" disabled={submitting}>
+          {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" />Signing in…</>) : 'Sign in to admin'}
+        </Button>
+      </form>
+
+      <p className="text-xs text-fg-3 text-center mt-6">
+        Not staff? <Link href="/" className="text-primary hover:underline">Return to JEMI</Link>
+      </p>
+    </div>
+  );
+}
+########## END: app/admin/login/AdminLoginForm.tsx ##########
+
+########## FILE: lib/api-client.ts (95 lines) ##########
+/**
+ * Client-side API fetcher. Wraps fetch() with:
+ *   - Always sends JSON
+ *   - Always parses JSON
+ *   - Throws a typed ApiError if the response is { ok: false }
+ *   - Returns the .data payload on success
+ *
+ * Usage in a component:
+ *   try {
+ *     const { user } = await apiFetch<{ user: User }>('/api/auth/login', {
+ *       method: 'POST',
+ *       body: { email, password },
+ *     });
+ *   } catch (err) {
+ *     if (err instanceof ApiError) {
+ *       toast.error(err.message);
+ *       // err.code for switch, err.field for inline display
+ *     }
+ *   }
+ */
+
+export type ErrorCode =
+  | 'UNAUTHORIZED' | 'FORBIDDEN' | 'NOT_FOUND' | 'VALIDATION_ERROR'
+  | 'INVALID_CREDENTIALS' | 'EMAIL_TAKEN' | 'WRONG_CURRENT_PASSWORD'
+  | 'PASSWORD_MISMATCH' | 'PROFILE_INCOMPLETE' | 'CART_EMPTY'
+  | 'PRODUCT_NOT_FOUND' | 'INSUFFICIENT_STOCK' | 'PAYMENT_INIT_FAILED'
+  | 'PAYMENT_VERIFY_FAILED' | 'PAYMENT_NOT_SUCCESSFUL' | 'ORDER_NOT_FOUND'
+  | 'ORDER_EXPIRED' | 'RATE_LIMITED' | 'SERVER_ERROR' | 'NETWORK_ERROR';
+
+export class ApiError extends Error {
+  code: ErrorCode;
+  field?: string;
+  status: number;
+  constructor(code: ErrorCode, message: string, status: number, field?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.field = field;
+    this.status = status;
+  }
+}
+
+interface FetchOpts {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  body?: unknown;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+}
+
+export async function apiFetch<T>(url: string, opts: FetchOpts = {}): Promise<T> {
+  const method = opts.method ?? 'GET';
+  const init: RequestInit = {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers ?? {}) },
+    signal: opts.signal,
+  };
+  if (opts.body !== undefined && method !== 'GET') {
+    init.body = JSON.stringify(opts.body);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch {
+    // Network failed (offline, DNS issue, etc.) — never reached the server.
+    throw new ApiError('NETWORK_ERROR', 'Connection problem. Check your internet and try again.', 0);
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    // Server responded with non-JSON (rare — usually means a crash)
+    throw new ApiError(
+      'SERVER_ERROR',
+      'Got an unexpected response from the server. Please try again.',
+      res.status
+    );
+  }
+
+  if (typeof body !== 'object' || body === null || !('ok' in body)) {
+    throw new ApiError('SERVER_ERROR', 'Unexpected response shape.', res.status);
+  }
+
+  const envelope = body as { ok: boolean; data?: T; error?: { code: ErrorCode; message: string; field?: string } };
+
+  if (envelope.ok && envelope.data !== undefined) {
+    return envelope.data;
+  }
+
+  if (!envelope.ok && envelope.error) {
+    throw new ApiError(envelope.error.code, envelope.error.message, res.status, envelope.error.field);
+  }
+
+  throw new ApiError('SERVER_ERROR', 'Unexpected response from the server.', res.status);
+}
+########## END: lib/api-client.ts ##########
+
+########## FILE: lib/api.ts (121 lines) ##########
+/**
+ * Standard API response shape and helpers.
+ *
+ * Every API route returns either:
+ *   200/2xx: { ok: true, data: ... }
+ *   4xx/5xx: { ok: false, error: { code, message, field? } }
+ *
+ * The `code` is a stable UPPER_SNAKE_CASE string the client can switch
+ * on. The `message` is a human-readable, conversational sentence
+ * suitable for showing in a toast or inline. The optional `field` is
+ * the name of the form field the error applies to (for inline display).
+ */
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+export type ErrorCode =
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'VALIDATION_ERROR'
+  | 'INVALID_CREDENTIALS'
+  | 'EMAIL_TAKEN'
+  | 'WRONG_CURRENT_PASSWORD'
+  | 'PASSWORD_MISMATCH'
+  | 'PROFILE_INCOMPLETE'
+  | 'CART_EMPTY'
+  | 'PRODUCT_NOT_FOUND'
+  | 'INSUFFICIENT_STOCK'
+  | 'PAYMENT_INIT_FAILED'
+  | 'PAYMENT_VERIFY_FAILED'
+  | 'PAYMENT_NOT_SUCCESSFUL'
+  | 'ORDER_NOT_FOUND'
+  | 'ORDER_EXPIRED'
+  | 'RATE_LIMITED'
+  | 'SERVER_ERROR';
+
+const CODE_TO_STATUS: Record<ErrorCode, number> = {
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  VALIDATION_ERROR: 400,
+  INVALID_CREDENTIALS: 401,
+  EMAIL_TAKEN: 409,
+  WRONG_CURRENT_PASSWORD: 401,
+  PASSWORD_MISMATCH: 400,
+  PROFILE_INCOMPLETE: 403,
+  CART_EMPTY: 400,
+  PRODUCT_NOT_FOUND: 400,
+  INSUFFICIENT_STOCK: 400,
+  PAYMENT_INIT_FAILED: 502,
+  PAYMENT_VERIFY_FAILED: 502,
+  PAYMENT_NOT_SUCCESSFUL: 402,
+  ORDER_NOT_FOUND: 404,
+  ORDER_EXPIRED: 410,
+  RATE_LIMITED: 429,
+  SERVER_ERROR: 500,
+};
+
+export interface ApiErrorPayload {
+  code: ErrorCode;
+  message: string;
+  field?: string;
+}
+
+export interface ApiSuccess<T> { ok: true; data: T; }
+export interface ApiFailure { ok: false; error: ApiErrorPayload; }
+export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
+
+/**
+ * Server-throwable error. Use inside route handlers — the catch-all
+ * wrapper (`withErrorHandling`) converts it to the right response.
+ */
+export class ApiServerError extends Error {
+  code: ErrorCode;
+  field?: string;
+  constructor(code: ErrorCode, message: string, field?: string) {
+    super(message);
+    this.name = 'ApiServerError';
+    this.code = code;
+    this.field = field;
+  }
+}
+
+/** 200 OK with `{ ok: true, data }`. */
+export function ok<T>(data: T, status = 200): NextResponse<ApiSuccess<T>> {
+  return NextResponse.json({ ok: true, data } as ApiSuccess<T>, { status });
+}
+
+/** Error response with auto status code from the registry. */
+export function fail(code: ErrorCode, message: string, field?: string): NextResponse<ApiFailure> {
+  const status = CODE_TO_STATUS[code] ?? 500;
+  const payload: ApiFailure = { ok: false, error: { code, message, ...(field ? { field } : {}) } };
+  return NextResponse.json(payload, { status });
+}
+
+/** Zod error → standard VALIDATION_ERROR with the first error's path/message. */
+export function failValidation(err: z.ZodError): NextResponse<ApiFailure> {
+  const first = err.errors[0];
+  const field = first?.path?.length ? String(first.path[0]) : undefined;
+  const message = first?.message ?? 'Please check your input.';
+  return fail('VALIDATION_ERROR', message, field);
+}
+
+/**
+ * Wrap a route handler so any thrown ApiServerError becomes the right
+ * response automatically, and any unhandled error becomes a generic
+ * SERVER_ERROR with no internal details leaked.
+ */
+export async function withErrorHandling<T>(
+  handler: () => Promise<NextResponse<ApiResponse<T>>>
+): Promise<NextResponse<ApiResponse<T> | ApiFailure>> {
+  try {
+    return await handler();
+  } catch (e) {
+    if (e instanceof ApiServerError) {
+      return fail(e.code, e.message, e.field);
+    }
+    // eslint-disable-next-line no-console
+    console.error('[api] unhandled error:', e);
+    return fail('SERVER_ERROR', 'Something went wrong on our end. Please try again.');
+  }
+}
+########## END: lib/api.ts ##########
+
+########## FILE: db/index.ts (50 lines) ##########
+/**
+ * Postgres connection — Neon serverless driver.
+ *
+ * Why this driver: works in BOTH Node (Vercel functions) and Edge
+ * (middleware). Uses HTTP fetch under the hood, so no persistent
+ * connection pool to exhaust on Atlas's-style limits.
+ *
+ * The serverless driver does NOT need a connection pool config the way
+ * Mongo did. Each query is an isolated HTTP request — Neon handles
+ * connection management on their end.
+ *
+ * For transactions, use the websocket-pool variant (also from
+ * @neondatabase/serverless). Drizzle's tx callback wraps this correctly.
+ */
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon, neonConfig } from '@neondatabase/serverless';
+import * as schema from './schema';
+
+// Required for the HTTP driver to function in Node 18+ envs.
+neonConfig.fetchConnectionCache = true;
+
+// Lazy resolve so a missing DATABASE_URL doesn't crash module-load
+// (Next.js evaluates this during `next build`). Same pattern as
+// lib/auth.ts and lib/mongodb.ts.
+function getConnectionString(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL is not defined. Set it to your Neon connection string in .env.local.'
+    );
+  }
+  return url;
+}
+
+// Lazy client — created on first use, then cached.
+let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+export function getDb() {
+  if (_db) return _db;
+  const sql = neon(getConnectionString());
+  _db = drizzle(sql, { schema });
+  return _db;
+}
+
+/**
+ * Convenience: re-exports the schema namespace so callers can write
+ *   import { db, products } from '@/db';
+ *   await db().select().from(products);
+ */
+export { schema };
+export const db = getDb;
+########## END: db/index.ts ##########
+
+########## FILE: db/pool.ts (55 lines) ##########
+/**
+ * WebSocket-based Postgres client for transactional queries.
+ *
+ * Why this exists alongside db/index.ts (HTTP driver):
+ * - db/index.ts uses neon-http: fast, edge-compatible, ONE shot per
+ *   query, NO transaction support. Throws at runtime if you call
+ *   db.transaction().
+ * - db/pool.ts uses @neondatabase/serverless's Pool (WebSocket): real
+ *   Postgres protocol over a persistent connection, supports
+ *   db.transaction(async (tx) => { ... }), supports SELECT FOR UPDATE
+ *   read-modify-write inside transactions.
+ *
+ * Use this ONLY in the API routes that need transactions:
+ *   - /api/payment/initialize  (reserve inventory + create order)
+ *   - /api/payment/verify      (mark paid + decrement stock idempotently)
+ *   - /api/payment/webhook     (same logic as verify, idempotent)
+ *
+ * Everything else (homepage, product list, product detail) stays on
+ * db/index.ts (HTTP) for lower per-request latency.
+ */
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import * as schema from './schema';
+
+// In Node, the WebSocket constructor needs to come from the `ws` package.
+// Vercel's Node runtime has `WebSocket` globally available (Node 22+),
+// so we don't need to install `ws`. If you ever deploy to a Node < 18.18
+// environment, install `ws` and uncomment the next two lines.
+// import ws from 'ws';
+// neonConfig.webSocketConstructor = ws;
+
+// Edge runtimes (middleware) already have WebSocket. No action needed.
+
+// Cache the pool across hot reloads in dev.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const globalForPool = global as unknown as { pgPool?: Pool };
+
+function getPool(): Pool {
+  if (globalForPool.pgPool) return globalForPool.pgPool;
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL is not defined. Set it to your Neon connection string in .env.local.'
+    );
+  }
+  globalForPool.pgPool = new Pool({ connectionString: url });
+  return globalForPool.pgPool;
+}
+
+let _dbPool: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+export function dbPool() {
+  if (_dbPool) return _dbPool;
+  _dbPool = drizzle(getPool(), { schema });
+  return _dbPool;
+}
+########## END: db/pool.ts ##########

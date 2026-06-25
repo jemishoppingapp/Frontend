@@ -16,7 +16,7 @@ import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 export interface JemiTokenPayload extends JWTPayload {
   sub: string;        // user._id as string
   email: string;
-  role: 'buyer' | 'admin';
+  role: 'buyer' | 'admin' | 'seller';
 }
 
 // Resolve the secret lazily so missing env doesn't crash the build
@@ -45,7 +45,7 @@ export async function verifyToken(token: string): Promise<JemiTokenPayload | nul
     if (
       typeof payload.sub === 'string' &&
       typeof payload.email === 'string' &&
-      (payload.role === 'buyer' || payload.role === 'admin')
+      (payload.role === 'buyer' || payload.role === 'admin' || payload.role === 'seller')
     ) {
       return payload as JemiTokenPayload;
     }
