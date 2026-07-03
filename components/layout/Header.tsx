@@ -5,6 +5,7 @@ import { Container } from '@/components/Container';
 import { HeaderMobileSearch } from './HeaderMobileSearch';
 import { HeaderCartBadge } from './HeaderCartBadge';
 import { getCurrentUser } from '@/lib/session';
+import { UserAvatar } from '@/components/UserAvatar';
 
 export async function Header() {
   const user = await getCurrentUser();
@@ -72,7 +73,11 @@ export async function Header() {
             className="tap inline-flex items-center justify-center h-10 w-10 rounded-full hover:bg-surface-1 transition-colors text-fg"
             aria-label={user ? 'My Profile' : 'Sign in'}
           >
-            <User className="h-[18px] w-[18px]" />
+            {user ? (
+              <UserAvatar name={user.name} src={user.avatar} size="sm" />
+            ) : (
+              <User className="h-[18px] w-[18px]" />
+            )}
           </Link>
         </nav>
       </Container>
