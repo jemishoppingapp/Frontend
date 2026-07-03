@@ -51,6 +51,8 @@ export async function PATCH(req: Request) {
     if (parsed.kind === 'profile') {
       const update: Record<string, unknown> = { updatedAt: new Date() };
       if (parsed.name !== undefined) update.name = parsed.name;
+      // Empty string means invalid/blank — never wipe the primary phone.
+      if (parsed.phone !== undefined && parsed.phone !== '') update.phone = parsed.phone;
       if (parsed.nickname !== undefined) update.nickname = parsed.nickname;
       if (parsed.alt_phone !== undefined) update.altPhone = parsed.alt_phone;
       if (parsed.address !== undefined) update.address = parsed.address;

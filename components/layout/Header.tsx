@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, User } from 'lucide-react';
+import { Search, User, Store, LayoutDashboard } from 'lucide-react';
 import { Container } from '@/components/Container';
 import { HeaderMobileSearch } from './HeaderMobileSearch';
 import { HeaderCartBadge } from './HeaderCartBadge';
@@ -45,6 +45,27 @@ export async function Header() {
         </div>
 
         <nav className="flex items-center gap-1 shrink-0">
+          {user?.role === 'seller' && (
+            <Link
+              href="/seller"
+              className="tap inline-flex items-center gap-1.5 h-10 px-3 rounded-full bg-primary-soft text-primary-text hover:opacity-90 transition-opacity text-xs font-semibold"
+              aria-label="Seller dashboard"
+            >
+              <Store className="h-4 w-4" />
+              <span className="hidden sm:inline">Seller dashboard</span>
+              <span className="sm:hidden">Shop</span>
+            </Link>
+          )}
+          {user?.role === 'admin' && (
+            <Link
+              href="/admin"
+              className="tap inline-flex items-center gap-1.5 h-10 px-3 rounded-full bg-primary-soft text-primary-text hover:opacity-90 transition-opacity text-xs font-semibold"
+              aria-label="Admin dashboard"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          )}
           <HeaderCartBadge />
           <Link
             href={profileHref}

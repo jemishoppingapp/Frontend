@@ -13,6 +13,7 @@ import type { CurrentUser } from '@/lib/session';
 export function ProfileForm({ user }: { user: CurrentUser }) {
   const router = useRouter();
   const [name, setName] = useState(user.name);
+  const [phone, setPhone] = useState(user.phone ?? '');
   const [nickname, setNickname] = useState(user.nickname ?? '');
   const [altPhone, setAltPhone] = useState(user.alt_phone ?? '');
   const [address, setAddress] = useState(user.address ?? '');
@@ -33,7 +34,7 @@ export function ProfileForm({ user }: { user: CurrentUser }) {
     try {
       await apiFetch<{ saved: boolean }>('/api/user/profile', {
         method: 'PATCH',
-        body: { kind: 'profile', name, nickname, alt_phone: altPhone, address, department },
+        body: { kind: 'profile', name, phone, nickname, alt_phone: altPhone, address, department },
       });
       toast.success('Profile saved');
       router.refresh();
@@ -101,9 +102,9 @@ export function ProfileForm({ user }: { user: CurrentUser }) {
           </div>
           <div>
             <Label htmlFor="phone" className="text-fg-1">Primary phone</Label>
-            <Input id="phone" value={user.phone || 'Not set'} disabled className="mt-1.5 bg-surface" />
+            <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08012345678" className="mt-1.5 bg-surface" />
             <p className="text-[11px] text-fg-3 mt-1">
-              Update via <a href="/profile/complete" className="text-primary hover:underline">profile completion</a>.
+              Nigerian number. We call this one about your orders.
             </p>
           </div>
           <div className="sm:col-span-2">

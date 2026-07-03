@@ -84,6 +84,15 @@ export const profileCompleteSchema = z.object({
 export const profileUpdateSchema = z.object({
   name: nameSchema.optional(),
   nickname: z.string().trim().max(100).optional(),
+  phone: z
+    .string()
+    .trim()
+    .optional()
+    .transform((val) => {
+      if (!val) return '';
+      const normalized = normalizeNigerianPhone(val);
+      return normalized ?? '';
+    }),
   alt_phone: z
     .string()
     .trim()
