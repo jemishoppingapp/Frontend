@@ -42,6 +42,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const deliveryFee = Number(order.deliveryFee);
   const total = Number(order.total);
   const isPaid = order.paymentStatus === 'paid';
+  const isPod = order.paymentMethod === 'pod';
+  const podAwaitingPayment = isPod && order.paymentStatus === 'pay_on_delivery';
 
   // INSTALL-15: dual-confirm state
   const sellerMarks = (order.sellerDeliveryMarks ?? {}) as Record<string, unknown>;
@@ -72,7 +74,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
       </div>
 
       {/* Pickup code */}
-      {isPaid && order.subOrders.length > 0 && order.subOrders[0].pickupCode && (
+      {(isPaid || isPod) && order.subOrders.length > 0 && order.subOrders[0].pickupCode && (
         <div className="mb-6 rounded-3xl border border-border-soft bg-surface-1 p-7 text-center">
           <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 mb-2 font-medium">Pickup code</p>
           <div className="font-mono font-bold tracking-[0.3em] text-primary text-4xl sm:text-5xl mb-3 leading-none">
@@ -81,6 +83,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <p className="text-xs text-fg-2">
             Show at <span className="font-semibold text-fg">{zoneName}</span> when collecting.
           </p>
+        </div>
+      )}
+
+      {/* POD: what to pay at the gate */}
+      {podAwaitingPayment && (
+        <div className="mb-6 rounded-2xl border-2 border-primary-soft bg-primary-soft/20 p-5">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-fg-2 font-medium mb-2">Pay at pickup</p>
+          <p className="font-display text-2xl font-bold text-fg mb-1">{formatCurrency(total)}</p>
+          <p className="text-xs text-fg-2 leading-relaxed">
+            Cash or bank transfer to our rep at the gate when you collect.
+            Check your items before paying.
+          </p>
+        </div>
+      )}
+      {isPod && order.paymentStatus === 'collected' && (
+        <div className="mb-6 rounded-2xl border border-success/30 bg-success/5 px-5 py-4">
+          <p className="text-sm font-semibold text-success">Paid at pickup ✓</p>
         </div>
       )}
 

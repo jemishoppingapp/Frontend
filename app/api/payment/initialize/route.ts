@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { requireAuth } from '@/lib/session';
 import { createPendingOrder, deletePendingOrderByReference } from '@/lib/checkout';
 import { initializeTransaction } from '@/lib/paystack';
+import { getPaymentMode } from '@/lib/payment-mode';
 import { ok, fail, failValidation, withErrorHandling, ApiServerError } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,11 @@ const inputSchema = z.object({
 
 export async function POST(req: Request) {
   return withErrorHandling(async () => {
+    // Paystack checkout only runs when the site is in paystack mode.
+    if (getPaymentMode() !== 'paystack') {
+      return fail('VALIDATION_ERROR', 'Online payment is not available right now. Orders are pay on delivery.');
+    }
+
     let user;
     try {
       user = await requireAuth();

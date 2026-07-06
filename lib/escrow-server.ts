@@ -167,6 +167,19 @@ export async function getSellerEscrowSummary(sellerId: string): Promise<{
     sums[r.type] = Number(r.total);
   }
 
+  // Pending = holds on orders whose escrow is still actually held.
+  // (A flat sum of all holds never decreases after release/refund.)
+  const pendingRows = await db().execute(sql`
+    SELECT COALESCE(SUM(el.amount::numeric), 0)::numeric AS total
+    FROM escrow_ledger el
+    JOIN orders o ON o.id = el.order_id
+    WHERE el.seller_id = ${sellerId}
+      AND el.type = 'hold'
+      AND o.escrow_status = 'held'
+  `);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pendingHeld = Number((pendingRows.rows[0] as any)?.total ?? 0);
+
   const recentRows = await db().execute(sql`
     SELECT el.id, el.type, el.amount::numeric AS amount, el.note,
            el.order_id AS "orderId", o.order_number AS "orderNumber",
@@ -190,7 +203,7 @@ export async function getSellerEscrowSummary(sellerId: string): Promise<{
   }));
 
   return {
-    pendingBalance: sums.hold ?? 0,
+    pendingBalance: pendingHeld,
     availableBalance: (sums.release ?? 0) - (sums.payout ?? 0),
     paidOut: sums.payout ?? 0,
     recentEntries: recent,
