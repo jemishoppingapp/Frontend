@@ -82,6 +82,9 @@ export const users = pgTable(
 
     profileCompleted: boolean('profile_completed').notNull().default(false),
     isDisabled: boolean('is_disabled').notNull().default(false),
+    /** harden-1: login rate limiting */
+    failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

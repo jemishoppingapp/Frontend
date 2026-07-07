@@ -28,6 +28,26 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          // No site may embed JEMI in an iframe (clickjacking).
+          { key: 'X-Frame-Options', value: 'DENY' },
+          // Browsers must not second-guess content types.
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          // Don't leak full URLs to other sites.
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          // JEMI never needs these device APIs.
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          // NOTE: a full Content-Security-Policy is deferred on purpose —
+          // a strict CSP can break Paystack's inline checkout. Add it
+          // together with the Paystack live switch.
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
