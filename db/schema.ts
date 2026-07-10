@@ -85,6 +85,13 @@ export const users = pgTable(
     /** harden-1: login rate limiting */
     failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    /** email-1: verification */
+    emailVerified: boolean('email_verified').notNull().default(false),
+    otpHash: varchar('otp_hash', { length: 100 }).notNull().default(''),
+    otpExpiresAt: timestamp('otp_expires_at', { withTimezone: true }),
+    otpAttempts: integer('otp_attempts').notNull().default(0),
+    otpLastSentAt: timestamp('otp_last_sent_at', { withTimezone: true }),
+    otpSendCount: integer('otp_send_count').notNull().default(0),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

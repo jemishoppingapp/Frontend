@@ -90,6 +90,9 @@ export function CheckoutForm({ user }: { user: { id: string; email: string; name
     } catch (err) {
       if (err instanceof ApiError) {
         toast.error(err.message);
+        if (err.message.toLowerCase().includes('verify your email')) {
+          setTimeout(() => { window.location.href = '/verify-email?from=/checkout'; }, 1200);
+        }
         if (err.code === 'PROFILE_INCOMPLETE') {
           setTimeout(() => { window.location.href = '/profile/complete?from=/checkout'; }, 1500);
         }

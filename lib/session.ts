@@ -15,6 +15,7 @@ export interface CurrentUser {
   phone: string;
   role: 'buyer' | 'admin' | 'seller';
   profile_completed: boolean;
+  email_verified: boolean;
   nickname?: string;
   alt_phone?: string;
   address?: string;
@@ -50,6 +51,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     phone: user.phone,
     role: user.role,
     profile_completed: user.profileCompleted,
+      email_verified: user.emailVerified,
     nickname: user.nickname,
     alt_phone: user.altPhone,
     address: user.address,

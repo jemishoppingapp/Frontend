@@ -42,6 +42,9 @@ export async function POST(req: Request) {
     if (!user.profile_completed) {
       return fail('PROFILE_INCOMPLETE', 'Please complete your profile before checking out.');
     }
+    if (!user.email_verified) {
+      return fail('FORBIDDEN', 'Please verify your email before checkout.');
+    }
 
     let parsed: z.infer<typeof inputSchema>;
     try {
