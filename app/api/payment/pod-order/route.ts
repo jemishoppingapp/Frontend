@@ -5,6 +5,7 @@ import { dbPool } from '@/db/pool';
 import { requireAuth } from '@/lib/session';
 import { createPendingOrder } from '@/lib/checkout';
 import { getPaymentMode } from '@/lib/payment-mode';
+import { sendEmail } from '@/lib/email';
 import { ok, fail, failValidation, withErrorHandling, ApiServerError } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +91,32 @@ export async function POST(req: Request) {
         WHERE id = ${result.orderId}
       `);
     });
+
+    // Ops alert: tell JEMI a new POD order exists. Awaited so serverless
+    // doesn't kill the send, but a failure NEVER breaks the checkout.
+    try {
+      const alertTo = process.env.ORDER_ALERT_EMAIL || process.env.SEED_ADMIN_EMAIL;
+      if (alertTo) {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jemi.com.ng';
+        const gate = parsed.deliveryZone === 'lasu-iba-gate' ? 'LASU Iba Gate' : 'Iyana Iba Gate';
+        const naira = new Intl.NumberFormat('en-NG').format(result.total);
+        await sendEmail({
+          to: alertTo,
+          subject: `New order ${result.orderNumber} — collect NGN ${naira} at ${gate}`,
+          html: `<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#111\">`+
+            `<p><strong>New pay-on-delivery order.</strong></p>`+
+            `<p>Order: <strong>${result.orderNumber}</strong><br/>`+
+            `Collect: <strong>NGN ${naira}</strong> (cash or transfer)<br/>`+
+            `Gate: <strong>${gate}</strong><br/>`+
+            `Where on campus: ${parsed.deliveryDescription}</p>`+
+            `<p>Buyer: ${user.name} — ${user.phone || 'no phone'} — ${user.email}</p>`+
+            `<p><a href=\"${siteUrl}/admin/orders/${result.orderNumber}\">Open in admin</a></p></div>`,
+          text: `New POD order ${result.orderNumber}. Collect NGN ${naira} at ${gate}. Buyer: ${user.name} ${user.phone || ''}. ${siteUrl}/admin/orders/${result.orderNumber}`,
+        });
+      }
+    } catch (e) {
+      console.error('[order-alert]', e);
+    }
 
     return ok({
       orderId: result.orderId,
