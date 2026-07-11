@@ -24,7 +24,7 @@ export default async function VerifyPage({
   if (!reference) {
     return (
       <Container className="py-16 text-center">
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">
+        <h1 className="text-xl font-semibold text-fg mb-2">
           No payment to verify
         </h1>
         <p className="text-sm text-gray-500 mb-6">

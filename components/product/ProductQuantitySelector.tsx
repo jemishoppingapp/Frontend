@@ -46,7 +46,7 @@ export function ProductQuantitySelector({
         disabled={disabled}
         min={min}
         max={max}
-        className="w-14 h-11 text-center border-x border-border text-base font-semibold text-gray-900 focus:outline-none focus:bg-gray-50 disabled:cursor-not-allowed"
+        className="w-14 h-11 text-center border-x border-border text-base font-semibold text-fg focus:outline-none focus:bg-surface-1 disabled:cursor-not-allowed"
         aria-label="Quantity"
       />
       <button

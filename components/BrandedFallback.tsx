@@ -114,7 +114,7 @@ export function BrandedFallback({ variant, title, message, reset }: Props) {
           )}
         </div>
 
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">
+        <h1 className="text-xl font-semibold text-fg mb-2">
           {finalTitle}
         </h1>
         <p className="text-sm text-gray-600 mb-6 max-w-sm mx-auto">
