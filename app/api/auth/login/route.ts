@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const rows = await db()
       .select()
       .from(schema.users)
-      .where(eq(schema.users.email, parsed.email))
+      .where(eq(schema.users.email, parsed.email.toLowerCase()))
       .limit(1);
     const user = rows[0];
 

@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const existing = await db()
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.email, parsed.email))
+      .where(eq(schema.users.email, parsed.email.toLowerCase()))
       .limit(1);
 
     if (existing.length > 0) {
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     const hash = await bcrypt.hash(parsed.password, BCRYPT_ROUNDS);
 
     await db().insert(schema.users).values({
-      email: parsed.email,
+      email: parsed.email.toLowerCase(),
       password: hash,
       name: parsed.name,
       role: 'buyer',
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     const rows = await db()
       .select()
       .from(schema.users)
-      .where(eq(schema.users.email, parsed.email))
+      .where(eq(schema.users.email, parsed.email.toLowerCase()))
       .limit(1);
 
     const user = rows[0];

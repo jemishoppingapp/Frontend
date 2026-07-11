@@ -66,7 +66,7 @@ export const users = pgTable(
   'users',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-    email: varchar('email', { length: 255 }).notNull(),
+    email: varchar('email', { length: 255 }).notNull().unique(),
     password: varchar('password', { length: 100 }).notNull(),  // bcrypt is 60 chars, room for growth
     name: varchar('name', { length: 100 }).notNull(),
     role: userRoleEnum('role').notNull().default('buyer'),
