@@ -57,3 +57,24 @@ export async function verifyOtp(userId: string, code: string) {
     UPDATE users SET email_verified = true, otp_hash = '', otp_expires_at = NULL, otp_attempts = 0 WHERE id = ${userId}`);
   return { ok: true as const };
 }
+/** Strict OTP check for password resets: ALWAYS validates the code
+ *  (no verified-user shortcut), consumes it on success, and marks the
+ *  email verified since inbox access was just proven. */
+export async function consumeOtp(userId: string, code: string) {
+  const rows = await db().execute(sql`
+    SELECT otp_hash, otp_expires_at, otp_attempts FROM users WHERE id = ${userId}`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const u = rows.rows[0] as any;
+  if (!u) return { ok: false as const, error: 'Account not found.' };
+  if (!u.otp_hash || !u.otp_expires_at) return { ok: false as const, error: 'No code issued. Request a new one.' };
+  if (new Date(u.otp_expires_at) < new Date()) return { ok: false as const, error: 'Code expired. Request a new one.' };
+  if (Number(u.otp_attempts) >= 5) return { ok: false as const, error: 'Too many wrong tries. Request a new code.' };
+  const match = await bcrypt.compare(code, u.otp_hash);
+  if (!match) {
+    await db().execute(sql`UPDATE users SET otp_attempts = otp_attempts + 1 WHERE id = ${userId}`);
+    return { ok: false as const, error: 'Wrong code. Check the email and try again.' };
+  }
+  await db().execute(sql`
+    UPDATE users SET email_verified = true, otp_hash = '', otp_expires_at = NULL, otp_attempts = 0 WHERE id = ${userId}`);
+  return { ok: true as const };
+}

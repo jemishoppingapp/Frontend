@@ -79,7 +79,10 @@ export function LoginForm({ fromPath }: { fromPath?: string }) {
         </div>
 
         <div>
-          <Label htmlFor="password" className="text-fg-1">Password</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password" className="text-fg-1">Password</Label>
+            <Link href="/forgot-password" className="text-xs text-primary hover:text-primary-hover">Forgot?</Link>
+          </div>
           <Input id="password" type="password" autoComplete="current-password"
             value={password} onChange={(e) => setPassword(e.target.value)} required
             className="mt-1.5" placeholder="••••••••" />
