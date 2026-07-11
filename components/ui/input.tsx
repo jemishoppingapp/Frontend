@@ -9,10 +9,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          'flex h-11 w-full rounded-md border border-border bg-white px-3 py-2 text-base text-gray-900',
-          'placeholder:text-gray-400',
+          // Theme tokens, not hardcoded light colors — text stays readable
+          // in dark AND light mode, filled or disabled.
+          'flex h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-fg',
+          'placeholder:text-fg-3',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
-          'disabled:cursor-not-allowed disabled:opacity-50',
+          'disabled:cursor-not-allowed disabled:opacity-70 disabled:text-fg-2',
           'file:border-0 file:bg-transparent file:text-sm file:font-medium',
           className
         )}

@@ -31,7 +31,7 @@ export function ProfileCompleteForm({ defaults, fromPath }: { defaults: Defaults
         body: { phone, alt_phone: altPhone, address, department, level },
       });
       toast.success('Profile complete');
-      const next = fromPath && fromPath.startsWith('/') ? fromPath : '/profile';
+      const next = fromPath && fromPath.startsWith('/') ? fromPath : '/';
       window.location.href = next;
     } catch (err) {
       if (err instanceof ApiError) {
