@@ -5,9 +5,10 @@ import { dbPool } from '@/db/pool';
 import { requireAuth } from '@/lib/session';
 import { createPendingOrder } from '@/lib/checkout';
 import { getPaymentMode } from '@/lib/payment-mode';
-import { sendEmail } from '@/lib/email';
+import { sendEmail, orderConfirmationHtml } from '@/lib/email';
 import { ok, fail, failValidation, withErrorHandling, ApiServerError } from '@/lib/api';
 import { sendTelegram } from '@/lib/notify';
+import { generatePickupCode } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -92,6 +93,31 @@ export async function POST(req: Request) {
         WHERE id = ${result.orderId}
       `);
     });
+
+    // POD FIX: sub-orders are created with empty pickup codes (only the
+    // Paystack paid-path filled them). Fill real codes now, then email
+    // the buyer their confirmation. Never breaks the checkout.
+    let podCodes = '';
+    try {
+      const soRows = await db().execute(sql`SELECT sub_orders FROM orders WHERE id = ${result.orderId}`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subs = ((soRows.rows[0] as any)?.sub_orders ?? []) as any[];
+      let changed = false;
+      for (const so of subs) { if (!so.pickupCode) { so.pickupCode = generatePickupCode(); changed = true; } }
+      if (changed) {
+        await db().execute(sql`UPDATE orders SET sub_orders = ${JSON.stringify(subs)}::jsonb, updated_at = now() WHERE id = ${result.orderId}`);
+      }
+      podCodes = subs.map((so) => so.pickupCode).filter(Boolean).join(', ');
+      const siteUrl2 = process.env.NEXT_PUBLIC_SITE_URL || 'https://jemi.com.ng';
+      const gate2 = parsed.deliveryZone === 'lasu-iba-gate' ? 'LASU Iba Gate' : 'Iyana Iba Gate';
+      const naira2 = new Intl.NumberFormat('en-NG').format(result.total);
+      await sendEmail({
+        to: user.email,
+        subject: `Order ${result.orderNumber} confirmed — pay NGN ${naira2} at ${gate2}`,
+        html: orderConfirmationHtml({ name: user.name, orderNumber: result.orderNumber, totalNaira: naira2, gate: gate2, where: parsed.deliveryDescription, codes: podCodes || '(see order page)', orderUrl: siteUrl2 + '/orders/' + result.orderNumber }),
+        text: `Order ${result.orderNumber} confirmed. Pay NGN ${naira2} at ${gate2}. Pickup code: ${podCodes}. ${siteUrl2}/orders/${result.orderNumber}`,
+      });
+    } catch (e) { console.error('[buyer-email]', e); }
 
     // Ops alert: tell JEMI a new POD order exists. Awaited so serverless
     // doesn't kill the send, but a failure NEVER breaks the checkout.

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { dbPool } from '@/db/pool';
 import { requireAdmin } from '@/lib/session';
 import { ok, fail, failValidation, withErrorHandling } from '@/lib/api';
+import { sendEmail, sellerApprovedHtml } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -111,6 +112,24 @@ export async function POST(
       // Suppress unused-var warning for sqlParts (we kept structure for clarity)
       void updates;
       void sqlParts;
+
+      // Tell the seller they're approved (only on the transition).
+      if (parsed.status === 'approved' && currentStatus !== 'approved') {
+        try {
+          const who = await tx.execute(sql`SELECT u.email, u.name, s.business_name FROM sellers s JOIN users u ON u.id = s.user_id WHERE s.id = ${id}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const w = who.rows[0] as any;
+          if (w?.email) {
+            const dash = (process.env.NEXT_PUBLIC_SITE_URL || 'https://jemi.com.ng') + '/seller';
+            await sendEmail({
+              to: w.email,
+              subject: `${w.business_name} is approved on JEMI`,
+              html: sellerApprovedHtml({ name: w.name, businessName: w.business_name, dashboardUrl: dash }),
+              text: `${w.business_name} is approved on JEMI. Start listing: ${dash}`,
+            });
+          }
+        } catch (e) { console.error('[seller-approved-email]', e); }
+      }
 
       return ok({ status: parsed.status });
     });
