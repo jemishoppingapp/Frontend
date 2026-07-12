@@ -7,6 +7,7 @@ import { createPendingOrder } from '@/lib/checkout';
 import { getPaymentMode } from '@/lib/payment-mode';
 import { sendEmail } from '@/lib/email';
 import { ok, fail, failValidation, withErrorHandling, ApiServerError } from '@/lib/api';
+import { sendTelegram } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -117,6 +118,12 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error('[order-alert]', e);
     }
+
+    try {
+      const tgGate = parsed.deliveryZone === 'lasu-iba-gate' ? 'LASU Iba Gate' : 'Iyana Iba Gate';
+      const tgNaira = new Intl.NumberFormat('en-NG').format(result.total);
+      await sendTelegram('NEW ORDER ' + result.orderNumber + '\nCollect NGN ' + tgNaira + ' at ' + tgGate + '\nBuyer: ' + user.name + ' ' + (user.phone || '') + '\n' + (process.env.NEXT_PUBLIC_SITE_URL || 'https://jemi.com.ng') + '/admin/orders/' + result.orderNumber);
+    } catch (e) { console.error('[notify]', e); }
 
     return ok({
       orderId: result.orderId,

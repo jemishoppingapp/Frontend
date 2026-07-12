@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db, schema } from '@/db';
 import { requireSeller } from '@/lib/seller-session';
 import { ok, fail, failValidation, withErrorHandling } from '@/lib/api';
+import { notifyOps } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -83,6 +84,13 @@ export async function POST(req: Request) {
 
     const created = await db().select({ id: schema.products.id, slug: schema.products.slug })
       .from(schema.products).where(eq(schema.products.slug, parsed.slug)).limit(1);
+    try {
+      await notifyOps({
+        subject: 'New product: ' + parsed.name + ' (' + seller.businessName + ')',
+        text: 'NEW PRODUCT LISTED\n' + parsed.name + ' - NGN ' + new Intl.NumberFormat('en-NG').format(parsed.price) + '\nSeller: ' + seller.businessName + '\n' + (process.env.NEXT_PUBLIC_SITE_URL || 'https://jemi.com.ng') + '/products/' + created[0].slug,
+      });
+    } catch (e) { console.error('[notify]', e); }
+
     return ok({ id: created[0].id, slug: created[0].slug });
   });
 }
